@@ -303,16 +303,112 @@ The User Service publishes these events to the message broker (e.g., Kafka). Oth
 
 ---
 
-## Tech Stack (Proposed)
+## Tech Stack
 
 | Concern | Choice |
 |---------|--------|
 | Language / Framework | Python 3.12 + FastAPI |
-| Database | PostgreSQL |
-| ORM | SQLAlchemy 2 + Alembic (migrations) |
-| Messaging | Kafka (aiokafka) |
-| Containerization | Docker + Kubernetes |
+| Database | PostgreSQL 16 |
+| ORM | SQLAlchemy 2 (async) + Alembic (migrations) |
+| Messaging | Kafka (aiokafka) — *planned* |
+| Containerization | Docker + Docker Compose |
 | API Docs | OpenAPI 3 / Swagger UI (FastAPI built-in) |
+
+---
+
+## Project Structure
+
+```
+user-service/
+├── app/
+│   ├── __init__.py
+│   ├── main.py              # FastAPI application entry point
+│   ├── config.py            # Pydantic Settings (env-based configuration)
+│   ├── database.py          # SQLAlchemy async engine & session factory
+│   ├── models/
+│   │   ├── __init__.py
+│   │   ├── user.py          # User model & UserRole enum
+│   │   └── address.py       # Address model
+│   └── routers/             # API route handlers (to be implemented)
+│       └── __init__.py
+├── alembic/
+│   ├── env.py               # Async Alembic configuration
+│   ├── script.py.mako
+│   └── versions/
+│       └── 001_initial_schema.py
+├── alembic.ini
+├── requirements.txt
+├── Dockerfile
+├── docker-compose.yml
+├── .env.example
+└── .dockerignore
+```
+
+---
+
+## Database Schema
+
+### `users` table
+
+| Column | Type | Constraints |
+|--------|------|-------------|
+| `id` | UUID | Primary Key |
+| `name` | VARCHAR(255) | NOT NULL |
+| `email` | VARCHAR(255) | NOT NULL, UNIQUE |
+| `phone` | VARCHAR(20) | NOT NULL, UNIQUE |
+| `hashed_password` | VARCHAR(255) | NOT NULL |
+| `role` | ENUM (`CUSTOMER`, `RESTAURANT_OWNER`, `COURIER`, `ADMIN`) | NOT NULL |
+| `is_active` | BOOLEAN | DEFAULT `true` |
+| `created_at` | TIMESTAMPTZ | DEFAULT `now()` |
+| `updated_at` | TIMESTAMPTZ | DEFAULT `now()` |
+| `deleted_at` | TIMESTAMPTZ | NULLABLE (soft delete) |
+
+### `addresses` table
+
+| Column | Type | Constraints |
+|--------|------|-------------|
+| `id` | UUID | Primary Key |
+| `user_id` | UUID | FK → `users.id` ON DELETE CASCADE |
+| `label` | VARCHAR(100) | NOT NULL |
+| `street` | VARCHAR(255) | NOT NULL |
+| `city` | VARCHAR(100) | NOT NULL |
+| `postal_code` | VARCHAR(10) | NOT NULL |
+| `lat` | DOUBLE PRECISION | NULLABLE |
+| `lng` | DOUBLE PRECISION | NULLABLE |
+| `created_at` | TIMESTAMPTZ | DEFAULT `now()` |
+
+---
+
+## Getting Started
+
+### Prerequisites
+
+- Docker & Docker Compose
+
+### Run
+
+```bash
+# Start PostgreSQL and the application
+docker compose up -d
+
+# Run database migrations
+docker compose exec user-service alembic upgrade head
+```
+
+The service will be available at `http://localhost:8000`.
+
+- **Swagger UI:** http://localhost:8000/docs
+- **Health check:** http://localhost:8000/actuator/health
+
+### Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `APP_NAME` | `user-service` | Application name |
+| `APP_PORT` | `8000` | HTTP port |
+| `DATABASE_URL` | `postgresql+asyncpg://postgres:postgres@user-db:5432/userdb` | Async database connection string |
+
+Copy `.env.example` to `.env` to override defaults.
 
 ---
 
@@ -321,10 +417,10 @@ The User Service publishes these events to the message broker (e.g., Kafka). Oth
 | Endpoint | Description |
 |----------|-------------|
 | `GET /actuator/health` | Liveness & readiness for K8s probes |
-| `GET /actuator/metrics` | Prometheus-compatible metrics |
+| `GET /actuator/metrics` | Prometheus-compatible metrics *(planned)* |
 
-- Distributed tracing via OpenTelemetry; `traceId` propagated in all service-to-service calls
-- All logs include `traceId`, `userId`, `requestId` fields
+- Distributed tracing via OpenTelemetry; `traceId` propagated in all service-to-service calls *(planned)*
+- All logs include `traceId`, `userId`, `requestId` fields *(planned)*
 
 ---
 
