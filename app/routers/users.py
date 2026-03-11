@@ -20,6 +20,7 @@ from app.schemas.user import (
     DeviceRegisterResponse,
     RegisterRequest,
     RegisterResponse,
+    UpdateMeRequest,
     UserMeResponse,
 )
 
@@ -95,6 +96,22 @@ def to_address_list_response(address: Address) -> AddressListResponse:
     )
 
 
+def to_me_response(user: User) -> UserMeResponse:
+    return UserMeResponse(
+        id=f"user_{user.id}",
+        name=user.name,
+        surname=user.surname,
+        email=user.email,
+        phone_number=user.phone,
+        role=user.role.value,
+        notification_preferences=UserMeResponse.NotificationPreferences(
+            push_enabled=True,
+            sms_enabled=False,
+            email_enabled=True,
+        ),
+    )
+
+
 @router.post("/register", response_model=RegisterResponse, status_code=status.HTTP_201_CREATED)
 async def register_user(
     payload: RegisterRequest,
@@ -132,7 +149,8 @@ async def register_user(
     )
 
     user = User(
-        name=f"{normalized_name} {normalized_surname}".strip(),
+        name=normalized_name,
+        surname=normalized_surname,
         email=normalized_email,
         phone=normalized_phone,
         hashed_password=hashed_password,
@@ -159,24 +177,44 @@ async def get_me(
     db: AsyncSession = Depends(get_db),
 ):
     user = await get_current_user(user_id=user_id, db=db)
+    return to_me_response(user)
 
-    name_parts = user.name.strip().split()
-    first_name = name_parts[0] if name_parts else ""
-    surname = " ".join(name_parts[1:]) if len(name_parts) > 1 else ""
 
-    return UserMeResponse(
-        id=f"user_{user.id}",
-        name=first_name,
-        surname=surname,
-        email=user.email,
-        phone_number=user.phone,
-        role=user.role.value,
-        notification_preferences=UserMeResponse.NotificationPreferences(
-            push_enabled=True,
-            sms_enabled=False,
-            email_enabled=True,
-        ),
-    )
+@router.put("/me", response_model=UserMeResponse)
+async def update_me(
+    payload: UpdateMeRequest,
+    user_id: UUID = Depends(get_current_user_id),
+    db: AsyncSession = Depends(get_db),
+):
+    user = await get_current_user(user_id=user_id, db=db)
+
+    if payload.name is None and payload.surname is None and payload.phone is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="At least one field (name, surname, or phone) must be provided",
+        )
+
+    if payload.name is not None:
+        user.name = payload.name.strip()
+    if payload.surname is not None:
+        user.surname = payload.surname.strip()
+
+    if payload.phone is not None:
+        normalized_phone = payload.phone.strip()
+        if normalized_phone != user.phone:
+            existing = await db.execute(
+                select(User).where(User.phone == normalized_phone, User.id != user.id)
+            )
+            if existing.scalar_one_or_none() is not None:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="Phone already exists",
+                )
+            user.phone = normalized_phone
+
+    await db.commit()
+    await db.refresh(user)
+    return to_me_response(user)
 
 
 @router.post("/me/device", response_model=DeviceRegisterResponse)

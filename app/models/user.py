@@ -25,6 +25,7 @@ class User(Base):
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
+    surname: Mapped[str] = mapped_column(String(255), nullable=False, default="")
     email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)
     phone: Mapped[str] = mapped_column(String(20), unique=True, nullable=False, index=True)
     hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -48,4 +49,4 @@ class User(Base):
     devices = relationship("UserDevice", back_populates="user", cascade="all, delete-orphan")
 
     def __repr__(self) -> str:
-        return f"<User {self.email} ({self.role.value})>"
+        return f"<User {self.name} {self.surname} {self.email} ({self.role.value})>"

@@ -28,30 +28,34 @@ The User Service is the single source of truth for **user profile and account da
 
 ### Functional Requirements
 
-| # | Requirement |
-|---|-------------|
-| FR-01 | A new user can register with name, email, phone number, password, and role |
+
+| #     | Requirement                                                                         |
+| ----- | ----------------------------------------------------------------------------------- |
+| FR-01 | A new user can register with name, email, phone number, password, and role          |
 | FR-02 | Passwords are stored securely (hashed — handled by this service before persistence) |
-| FR-03 | Users can view their own profile |
-| FR-04 | Users can update their profile fields (name, phone) |
-| FR-05 | Users can add, list, and delete delivery addresses |
-| FR-06 | Admins can list, deactivate, or delete any user account |
-| FR-07 | Other services can fetch a user's basic info by user ID via an internal endpoint |
+| FR-03 | Users can view their own profile                                                    |
+| FR-04 | Users can update their profile fields (name, phone)                                 |
+| FR-05 | Users can add, list, and delete delivery addresses                                  |
+| FR-06 | Admins can list, deactivate, or delete any user account                             |
+| FR-07 | Other services can fetch a user's basic info by user ID via an internal endpoint    |
 | FR-08 | The service publishes domain events when a user is created, updated, or deactivated |
-| FR-09 | Email and phone number must be unique across all users |
-| FR-10 | A user's role determines what actions they can perform across the platform |
+| FR-09 | Email and phone number must be unique across all users                              |
+| FR-10 | A user's role determines what actions they can perform across the platform          |
+
 
 ### Non-Functional Requirements
 
-| # | Requirement |
-|---|-------------|
-| NFR-01 | Passwords must be hashed with bcrypt (cost factor ≥ 12) before storage |
-| NFR-02 | Service must be independently deployable and horizontally scalable |
-| NFR-03 | PII fields (email, phone) should be encrypted at rest |
-| NFR-04 | Structured JSON logging with trace/correlation IDs on every log line |
-| NFR-05 | Health check endpoints for Kubernetes liveness and readiness probes |
-| NFR-06 | Internal user lookup must respond in < 50 ms (p99) |
+
+| #      | Requirement                                                                         |
+| ------ | ----------------------------------------------------------------------------------- |
+| NFR-01 | Passwords must be hashed with bcrypt (cost factor ≥ 12) before storage              |
+| NFR-02 | Service must be independently deployable and horizontally scalable                  |
+| NFR-03 | PII fields (email, phone) should be encrypted at rest                               |
+| NFR-04 | Structured JSON logging with trace/correlation IDs on every log line                |
+| NFR-05 | Health check endpoints for Kubernetes liveness and readiness probes                 |
+| NFR-06 | Internal user lookup must respond in < 50 ms (p99)                                  |
 | NFR-07 | All communication with other services follows shared API style and auth conventions |
+
 
 ---
 
@@ -67,9 +71,11 @@ The User Service is the single source of truth for **user profile and account da
 ### Public Endpoints
 
 #### `POST /api/v1/users/register`
+
 Register a new user. This is the only unauthenticated public endpoint on this service.
 
 **Request Body:**
+
 ```json
 {
   "name": "Ali Veli",
@@ -81,6 +87,7 @@ Register a new user. This is the only unauthenticated public endpoint on this se
 ```
 
 **Response `201 Created`:**
+
 ```json
 {
   "id": "uuid",
@@ -97,10 +104,12 @@ Register a new user. This is the only unauthenticated public endpoint on this se
 ---
 
 #### `GET /api/v1/users/me`
+
 Get the authenticated user's own profile.
 Headers: `X-User-Id: uuid`, `X-User-Role: CUSTOMER` (injected by Gateway)
 
 **Response `200 OK`:**
+
 ```json
 {
   "id": "uuid",
@@ -127,9 +136,11 @@ Headers: `X-User-Id: uuid`, `X-User-Role: CUSTOMER` (injected by Gateway)
 ---
 
 #### `PUT /api/v1/users/me`
+
 Update the authenticated user's own profile (name, phone only — email changes require a separate flow).
 
 **Request Body (partial update):**
+
 ```json
 {
   "name": "Ali Veli Updated",
@@ -142,9 +153,11 @@ Update the authenticated user's own profile (name, phone only — email changes 
 ---
 
 #### `POST /api/v1/users/me/addresses`
+
 Add a new delivery address to the authenticated user's address book.
 
 **Request Body:**
+
 ```json
 {
   "label": "Home",
@@ -157,6 +170,7 @@ Add a new delivery address to the authenticated user's address book.
 ```
 
 **Response `201 Created`:**
+
 ```json
 {
   "id": "uuid",
@@ -172,6 +186,7 @@ Add a new delivery address to the authenticated user's address book.
 ---
 
 #### `GET /api/v1/users/me/addresses`
+
 List all saved addresses of the authenticated user.
 
 **Response `200 OK`:** *(array of address objects)*
@@ -179,6 +194,7 @@ List all saved addresses of the authenticated user.
 ---
 
 #### `DELETE /api/v1/users/me/addresses/{addressId}`
+
 Remove a delivery address.
 
 **Response `204 No Content`**
@@ -190,9 +206,11 @@ Remove a delivery address.
 These endpoints are **not exposed through the API Gateway**. They are only reachable within the Kubernetes cluster network by trusted services.
 
 #### `GET /internal/v1/users/{userId}`
+
 Fetch basic user profile by ID. Used by Order, Payment, and Notification services.
 
 **Response `200 OK`:**
+
 ```json
 {
   "id": "uuid",
@@ -209,9 +227,11 @@ Fetch basic user profile by ID. Used by Order, Payment, and Notification service
 ---
 
 #### `POST /internal/v1/users/lookup`
+
 Bulk fetch multiple users by a list of IDs (used by Order or Restaurant services for batch operations).
 
 **Request Body:**
+
 ```json
 {
   "userIds": ["uuid1", "uuid2", "uuid3"]
@@ -219,6 +239,7 @@ Bulk fetch multiple users by a list of IDs (used by Order or Restaurant services
 ```
 
 **Response `200 OK`:**
+
 ```json
 {
   "users": [
@@ -231,9 +252,11 @@ Bulk fetch multiple users by a list of IDs (used by Order or Restaurant services
 ---
 
 #### `GET /internal/v1/users/by-email?email={email}`
+
 Look up a user by email address. Used by the **Gateway/Auth service** during the login flow to retrieve the user record (including hashed password) for credential verification.
 
 **Response `200 OK`:**
+
 ```json
 {
   "id": "uuid",
@@ -252,12 +275,14 @@ Look up a user by email address. Used by the **Gateway/Auth service** during the
 
 > Require `X-User-Role: ADMIN` header forwarded by the Gateway.
 
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/api/v1/admin/users` | List all users (paginated, filterable by role/status) |
-| `GET` | `/api/v1/admin/users/{id}` | Get any user by ID |
+
+| Method  | Path                                  | Description                                                                    |
+| ------- | ------------------------------------- | ------------------------------------------------------------------------------ |
+| `GET`   | `/api/v1/admin/users`                 | List all users (paginated, filterable by role/status)                          |
+| `GET`   | `/api/v1/admin/users/{id}`            | Get any user by ID                                                             |
 | `PATCH` | `/api/v1/admin/users/{id}/deactivate` | Soft delete — marks user as deleted (`deletedAt` timestamp set, data retained) |
-| `PATCH` | `/api/v1/admin/users/{id}/activate` | Re-activate a user account |
+| `PATCH` | `/api/v1/admin/users/{id}/activate`   | Re-activate a user account                                                     |
+
 
 > ℹ️ **No hard delete.** User records are never physically removed from the database. This preserves referential integrity for historical Order, Payment, and Delivery records that reference a `userId`. A soft-deleted user cannot log in and is excluded from all normal queries, but their data remains intact.
 
@@ -267,14 +292,17 @@ Look up a user by email address. Used by the **Gateway/Auth service** during the
 
 The User Service publishes these events to the message broker (e.g., RabbitMQ). Other services subscribe as needed.
 
-| Event | Topic | Trigger |
-|-------|-------|---------|
-| `UserRegistered` | `user.registered` | New user successfully created |
-| `UserUpdated` | `user.updated` | Profile fields changed |
-| `UserDeactivated` | `user.deactivated` | Admin soft-deletes or deactivates an account |
+
+| Event             | Topic              | Trigger                                             |
+| ----------------- | ------------------ | --------------------------------------------------- |
+| `UserRegistered`  | `user.registered`  | New user successfully created                       |
+| `UserUpdated`     | `user.updated`     | Profile fields changed                              |
+| `UserDeactivated` | `user.deactivated` | Admin soft-deletes or deactivates an account        |
 | `UserReactivated` | `user.reactivated` | Admin re-activates a previously deactivated account |
 
-**`UserRegistered` Payload Example:**
+
+`**UserRegistered` Payload Example:**
+
 ```json
 {
   "eventId": "uuid",
@@ -293,26 +321,30 @@ The User Service publishes these events to the message broker (e.g., RabbitMQ). 
 
 ## Inter-Service Dependencies
 
-| Service | Direction | Communication | Purpose |
-|---------|-----------|---------------|---------|
-| Gateway/Auth | Inbound | Internal HTTP (`/internal/v1/users/by-email`) | Credential lookup during login |
-| Gateway/Auth | Inbound | Public HTTP (proxied) | Routes authenticated requests with user headers |
-| Order Service | Inbound | Internal HTTP (`/internal/v1/users/{id}`) | Fetch customer info for orders |
-| Payment Service | Inbound | Internal HTTP (`/internal/v1/users/{id}`) | Fetch billing info |
-| Restaurant Service | Inbound | Internal HTTP (`/internal/v1/users/{id}`) | Fetch restaurant owner info |
+
+| Service            | Direction | Communication                                 | Purpose                                         |
+| ------------------ | --------- | --------------------------------------------- | ----------------------------------------------- |
+| Gateway/Auth       | Inbound   | Internal HTTP (`/internal/v1/users/by-email`) | Credential lookup during login                  |
+| Gateway/Auth       | Inbound   | Public HTTP (proxied)                         | Routes authenticated requests with user headers |
+| Order Service      | Inbound   | Internal HTTP (`/internal/v1/users/{id}`)     | Fetch customer info for orders                  |
+| Payment Service    | Inbound   | Internal HTTP (`/internal/v1/users/{id}`)     | Fetch billing info                              |
+| Restaurant Service | Inbound   | Internal HTTP (`/internal/v1/users/{id}`)     | Fetch restaurant owner info                     |
+
 
 ---
 
 ## Tech Stack
 
-| Concern | Choice |
-|---------|--------|
-| Language / Framework | Python 3.12 + FastAPI |
-| Database | PostgreSQL 16 |
-| ORM | SQLAlchemy 2 (async) + Alembic (migrations) |
-| Messaging | RabbitMQ (aio-pika) — *planned* |
-| Containerization | Docker + Docker Compose |
-| API Docs | OpenAPI 3 / Swagger UI (FastAPI built-in) |
+
+| Concern              | Choice                                      |
+| -------------------- | ------------------------------------------- |
+| Language / Framework | Python 3.9.6 + FastAPI                      |
+| Database             | PostgreSQL 16                               |
+| ORM                  | SQLAlchemy 2 (async) + Alembic (migrations) |
+| Messaging            | RabbitMQ (aio-pika) — *planned*             |
+| Containerization     | Docker + Docker Compose                     |
+| API Docs             | OpenAPI 3 / Swagger UI (FastAPI built-in)   |
+
 
 ---
 
@@ -350,32 +382,36 @@ user-service/
 
 ### `users` table
 
-| Column | Type | Constraints |
-|--------|------|-------------|
-| `id` | UUID | Primary Key |
-| `name` | VARCHAR(255) | NOT NULL |
-| `email` | VARCHAR(255) | NOT NULL, UNIQUE |
-| `phone` | VARCHAR(20) | NOT NULL, UNIQUE |
-| `hashed_password` | VARCHAR(255) | NOT NULL |
-| `role` | ENUM (`CUSTOMER`, `RESTAURANT_OWNER`, `ADMIN`) | NOT NULL |
-| `is_active` | BOOLEAN | DEFAULT `true` |
-| `created_at` | TIMESTAMPTZ | DEFAULT `now()` |
-| `updated_at` | TIMESTAMPTZ | DEFAULT `now()` |
-| `deleted_at` | TIMESTAMPTZ | NULLABLE (soft delete) |
+
+| Column            | Type                                           | Constraints            |
+| ----------------- | ---------------------------------------------- | ---------------------- |
+| `id`              | UUID                                           | Primary Key            |
+| `name`            | VARCHAR(255)                                   | NOT NULL               |
+| `email`           | VARCHAR(255)                                   | NOT NULL, UNIQUE       |
+| `phone`           | VARCHAR(20)                                    | NOT NULL, UNIQUE       |
+| `hashed_password` | VARCHAR(255)                                   | NOT NULL               |
+| `role`            | ENUM (`CUSTOMER`, `RESTAURANT_OWNER`, `ADMIN`) | NOT NULL               |
+| `is_active`       | BOOLEAN                                        | DEFAULT `true`         |
+| `created_at`      | TIMESTAMPTZ                                    | DEFAULT `now()`        |
+| `updated_at`      | TIMESTAMPTZ                                    | DEFAULT `now()`        |
+| `deleted_at`      | TIMESTAMPTZ                                    | NULLABLE (soft delete) |
+
 
 ### `addresses` table
 
-| Column | Type | Constraints |
-|--------|------|-------------|
-| `id` | UUID | Primary Key |
-| `user_id` | UUID | FK → `users.id` ON DELETE CASCADE |
-| `label` | VARCHAR(100) | NOT NULL |
-| `street` | VARCHAR(255) | NOT NULL |
-| `city` | VARCHAR(100) | NOT NULL |
-| `postal_code` | VARCHAR(10) | NOT NULL |
-| `lat` | DOUBLE PRECISION | NULLABLE |
-| `lng` | DOUBLE PRECISION | NULLABLE |
-| `created_at` | TIMESTAMPTZ | DEFAULT `now()` |
+
+| Column        | Type             | Constraints                       |
+| ------------- | ---------------- | --------------------------------- |
+| `id`          | UUID             | Primary Key                       |
+| `user_id`     | UUID             | FK → `users.id` ON DELETE CASCADE |
+| `label`       | VARCHAR(100)     | NOT NULL                          |
+| `street`      | VARCHAR(255)     | NOT NULL                          |
+| `city`        | VARCHAR(100)     | NOT NULL                          |
+| `postal_code` | VARCHAR(10)      | NOT NULL                          |
+| `lat`         | DOUBLE PRECISION | NULLABLE                          |
+| `lng`         | DOUBLE PRECISION | NULLABLE                          |
+| `created_at`  | TIMESTAMPTZ      | DEFAULT `now()`                   |
+
 
 ---
 
@@ -397,16 +433,18 @@ docker compose exec user-service alembic upgrade head
 
 The service will be available at `http://localhost:8000`.
 
-- **Swagger UI:** http://localhost:8000/docs
-- **Health check:** http://localhost:8000/actuator/health
+- **Swagger UI:** [http://localhost:8000/docs](http://localhost:8000/docs)
+- **Health check:** [http://localhost:8000/actuator/health](http://localhost:8000/actuator/health)
 
 ### Environment Variables
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `APP_NAME` | `user-service` | Application name |
-| `APP_PORT` | `8000` | HTTP port |
+
+| Variable       | Default                                                      | Description                      |
+| -------------- | ------------------------------------------------------------ | -------------------------------- |
+| `APP_NAME`     | `user-service`                                               | Application name                 |
+| `APP_PORT`     | `8000`                                                       | HTTP port                        |
 | `DATABASE_URL` | `postgresql+asyncpg://postgres:postgres@user-db:5432/userdb` | Async database connection string |
+
 
 Copy `.env.example` to `.env` to override defaults.
 
@@ -414,10 +452,12 @@ Copy `.env.example` to `.env` to override defaults.
 
 ## Health & Observability
 
-| Endpoint | Description |
-|----------|-------------|
-| `GET /actuator/health` | Liveness & readiness for K8s probes |
+
+| Endpoint                | Description                               |
+| ----------------------- | ----------------------------------------- |
+| `GET /actuator/health`  | Liveness & readiness for K8s probes       |
 | `GET /actuator/metrics` | Prometheus-compatible metrics *(planned)* |
+
 
 - Distributed tracing via OpenTelemetry; `traceId` propagated in all service-to-service calls *(planned)*
 - All logs include `traceId`, `userId`, `requestId` fields *(planned)*

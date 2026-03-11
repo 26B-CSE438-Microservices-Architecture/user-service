@@ -6,8 +6,13 @@ from app.schemas.user import (
     DeleteAddressResponse,
     DeviceRegisterRequest,
     DeviceRegisterResponse,
+    InternalUserByEmailResponse,
+    InternalUserLookupRequest,
+    InternalUserLookupResponse,
+    InternalUserResponse,
     RegisterRequest,
     RegisterResponse,
+    UpdateMeRequest,
     UserMeResponse,
 )
 
@@ -19,7 +24,12 @@ __all__ = [
     "DeleteAddressResponse",
     "DeviceRegisterRequest",
     "DeviceRegisterResponse",
+    "InternalUserByEmailResponse",
+    "InternalUserLookupRequest",
+    "InternalUserLookupResponse",
+    "InternalUserResponse",
     "RegisterRequest",
     "RegisterResponse",
+    "UpdateMeRequest",
     "UserMeResponse",
 ]

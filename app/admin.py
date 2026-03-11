@@ -14,13 +14,14 @@ class UserAdmin(ModelView, model=User):
     column_list = [
         User.id,
         User.name,
+        User.surname,
         User.email,
         User.phone,
         User.role,
         User.is_active,
         User.created_at,
     ]
-    column_searchable_list = [User.name, User.email, User.phone]
+    column_searchable_list = [User.name, User.surname, User.email, User.phone]
     column_sortable_list = [User.created_at, User.email, User.phone]
     column_default_sort = [(User.created_at, True)]
     can_export = True

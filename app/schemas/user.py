@@ -20,6 +20,12 @@ class UserMeResponse(BaseModel):
     notification_preferences: NotificationPreferences
 
 
+class UpdateMeRequest(BaseModel):
+    name: str | None = None
+    surname: str | None = None
+    phone: str | None = None
+
+
 class RegisterRequest(BaseModel):
     name: str
     surname: str
@@ -110,3 +116,37 @@ class AddressListResponse(AddressResponse):
 
 class DeleteAddressResponse(BaseModel):
     message: str
+
+
+class InternalUserResponse(BaseModel):
+    id: UUID
+    name: str
+    surname: str
+    email: str
+    phone: str
+    role: str
+    active: bool
+
+
+class InternalUserLookupRequest(BaseModel):
+    userIds: list[UUID]
+
+
+class InternalUserLookupItem(BaseModel):
+    id: UUID
+    name: str
+    surname: str
+    role: str
+    active: bool
+
+
+class InternalUserLookupResponse(BaseModel):
+    users: list[InternalUserLookupItem]
+
+
+class InternalUserByEmailResponse(BaseModel):
+    id: UUID
+    email: str
+    hashedPassword: str
+    role: str
+    active: bool
