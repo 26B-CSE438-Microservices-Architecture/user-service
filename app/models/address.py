@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import DateTime, Float, ForeignKey, String
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, String
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -17,10 +17,17 @@ class Address(Base):
     user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
-    label: Mapped[str] = mapped_column(String(100), nullable=False)
+    address_title: Mapped[str] = mapped_column(String(100), nullable=False)
     street: Mapped[str] = mapped_column(String(255), nullable=False)
     city: Mapped[str] = mapped_column(String(100), nullable=False)
-    postal_code: Mapped[str] = mapped_column(String(10), nullable=False)
+    district: Mapped[str] = mapped_column(String(100), nullable=False)
+    neighborhood: Mapped[str] = mapped_column(String(120), nullable=False)
+    building_no: Mapped[str] = mapped_column(String(20), nullable=False)
+    floor: Mapped[str] = mapped_column(String(20), nullable=False)
+    apartment_no: Mapped[str] = mapped_column(String(20), nullable=False)
+    address_description: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    phone: Mapped[str] = mapped_column(String(20), nullable=False)
+    is_current: Mapped[bool] = mapped_column(Boolean, default=False)
     lat: Mapped[float | None] = mapped_column(Float, nullable=True)
     lng: Mapped[float | None] = mapped_column(Float, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
@@ -30,4 +37,4 @@ class Address(Base):
     user = relationship("User", back_populates="addresses")
 
     def __repr__(self) -> str:
-        return f"<Address {self.label} – {self.city}>"
+        return f"<Address {self.address_title} – {self.city}>"
