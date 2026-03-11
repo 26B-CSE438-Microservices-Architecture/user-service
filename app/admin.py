@@ -2,6 +2,7 @@ from sqladmin import Admin, ModelView
 
 from app.database import engine
 from app.models.address import Address
+from app.models.device import UserDevice
 from app.models.user import User
 
 
@@ -52,7 +53,28 @@ class AddressAdmin(ModelView, model=Address):
     can_export = True
 
 
+class UserDeviceAdmin(ModelView, model=UserDevice):
+    name = "User Device"
+    name_plural = "User Devices"
+    icon = "fa-solid fa-mobile-screen"
+
+    column_list = [
+        UserDevice.id,
+        UserDevice.user_id,
+        UserDevice.device_token,
+        UserDevice.platform,
+        UserDevice.is_active,
+        UserDevice.created_at,
+        UserDevice.updated_at,
+    ]
+    column_searchable_list = [UserDevice.device_token]
+    column_sortable_list = [UserDevice.created_at, UserDevice.updated_at]
+    column_default_sort = [(UserDevice.updated_at, True)]
+    can_export = True
+
+
 def setup_admin(app) -> None:
     admin = Admin(app, engine, base_url="/admin")
     admin.add_view(UserAdmin)
     admin.add_view(AddressAdmin)
+    admin.add_view(UserDeviceAdmin)

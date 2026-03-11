@@ -17,7 +17,7 @@ The User Service is the single source of truth for **user profile and account da
 
 - User registration (creating accounts)
 - Storing and managing user profile data (name, email, phone)
-- Role assignment: `CUSTOMER`, `RESTAURANT_OWNER`, `COURIER`, `ADMIN`
+- Role assignment: `CUSTOMER`, `RESTAURANT_OWNER`, `ADMIN`
 - Delivery address book management per user
 - Providing user data to other services via internal API
 - Publishing user lifecycle domain events
@@ -190,7 +190,7 @@ Remove a delivery address.
 These endpoints are **not exposed through the API Gateway**. They are only reachable within the Kubernetes cluster network by trusted services.
 
 #### `GET /internal/v1/users/{userId}`
-Fetch basic user profile by ID. Used by Order, Courier, Payment, and Notification services.
+Fetch basic user profile by ID. Used by Order, Payment, and Notification services.
 
 **Response `200 OK`:**
 ```json
@@ -223,7 +223,7 @@ Bulk fetch multiple users by a list of IDs (used by Order or Restaurant services
 {
   "users": [
     { "id": "uuid1", "name": "...", "role": "CUSTOMER", "active": true },
-    { "id": "uuid2", "name": "...", "role": "COURIER", "active": true }
+    { "id": "uuid2", "name": "...", "role": "RESTAURANT_OWNER", "active": true }
   ]
 }
 ```
@@ -259,13 +259,13 @@ Look up a user by email address. Used by the **Gateway/Auth service** during the
 | `PATCH` | `/api/v1/admin/users/{id}/deactivate` | Soft delete — marks user as deleted (`deletedAt` timestamp set, data retained) |
 | `PATCH` | `/api/v1/admin/users/{id}/activate` | Re-activate a user account |
 
-> ℹ️ **No hard delete.** User records are never physically removed from the database. This preserves referential integrity for historical Order, Payment, and Courier records that reference a `userId`. A soft-deleted user cannot log in and is excluded from all normal queries, but their data remains intact.
+> ℹ️ **No hard delete.** User records are never physically removed from the database. This preserves referential integrity for historical Order, Payment, and Delivery records that reference a `userId`. A soft-deleted user cannot log in and is excluded from all normal queries, but their data remains intact.
 
 ---
 
 ## Domain Events Published
 
-The User Service publishes these events to the message broker (e.g., Kafka). Other services subscribe as needed.
+The User Service publishes these events to the message broker (e.g., RabbitMQ). Other services subscribe as needed.
 
 | Event | Topic | Trigger |
 |-------|-------|---------|
@@ -310,7 +310,7 @@ The User Service publishes these events to the message broker (e.g., Kafka). Oth
 | Language / Framework | Python 3.12 + FastAPI |
 | Database | PostgreSQL 16 |
 | ORM | SQLAlchemy 2 (async) + Alembic (migrations) |
-| Messaging | Kafka (aiokafka) — *planned* |
+| Messaging | RabbitMQ (aio-pika) — *planned* |
 | Containerization | Docker + Docker Compose |
 | API Docs | OpenAPI 3 / Swagger UI (FastAPI built-in) |
 
@@ -357,7 +357,7 @@ user-service/
 | `email` | VARCHAR(255) | NOT NULL, UNIQUE |
 | `phone` | VARCHAR(20) | NOT NULL, UNIQUE |
 | `hashed_password` | VARCHAR(255) | NOT NULL |
-| `role` | ENUM (`CUSTOMER`, `RESTAURANT_OWNER`, `COURIER`, `ADMIN`) | NOT NULL |
+| `role` | ENUM (`CUSTOMER`, `RESTAURANT_OWNER`, `ADMIN`) | NOT NULL |
 | `is_active` | BOOLEAN | DEFAULT `true` |
 | `created_at` | TIMESTAMPTZ | DEFAULT `now()` |
 | `updated_at` | TIMESTAMPTZ | DEFAULT `now()` |
