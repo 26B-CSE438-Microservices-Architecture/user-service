@@ -38,9 +38,18 @@ class AddressAdmin(ModelView, model=Address):
         Address.address_title,
         Address.city,
         Address.district,
+        Address.neighborhood,
+        Address.street,
+        Address.building_no,
+        Address.floor,
+        Address.apartment_no,
+        Address.address_description,
         Address.phone,
         Address.is_current,
+        Address.lat,
+        Address.lng,
         Address.created_at,
+        Address.deleted_at,
     ]
     column_searchable_list = [
         Address.address_title,
@@ -49,7 +58,7 @@ class AddressAdmin(ModelView, model=Address):
         Address.neighborhood,
         Address.phone,
     ]
-    column_sortable_list = [Address.created_at, Address.city]
+    column_sortable_list = [Address.created_at, Address.deleted_at, Address.city]
     column_default_sort = [(Address.created_at, True)]
     can_export = True
 

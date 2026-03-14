@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from uuid import UUID
 
 import bcrypt
@@ -98,7 +99,9 @@ def to_address_list_response(address: Address) -> AddressListResponse:
 
 
 async def get_user_addresses(user_id: UUID, db: AsyncSession) -> list[AddressListResponse]:
-    result = await db.execute(select(Address).where(Address.user_id == user_id))
+    result = await db.execute(
+        select(Address).where(Address.user_id == user_id, Address.deleted_at.is_(None))
+    )
     addresses = result.scalars().all()
     return [to_address_list_response(address) for address in addresses]
 
@@ -308,7 +311,11 @@ async def update_address(
     await get_current_user(user_id=user_id, db=db)
     parsed_address_id = parse_address_id(address_id)
     result = await db.execute(
-        select(Address).where(Address.id == parsed_address_id, Address.user_id == user_id)
+        select(Address).where(
+            Address.id == parsed_address_id,
+            Address.user_id == user_id,
+            Address.deleted_at.is_(None),
+        )
     )
     address = result.scalar_one_or_none()
     if address is None:
@@ -339,7 +346,11 @@ async def delete_address(
     await get_current_user(user_id=user_id, db=db)
     parsed_address_id = parse_address_id(address_id)
     result = await db.execute(
-        select(Address).where(Address.id == parsed_address_id, Address.user_id == user_id)
+        select(Address).where(
+            Address.id == parsed_address_id,
+            Address.user_id == user_id,
+            Address.deleted_at.is_(None),
+        )
     )
     address = result.scalar_one_or_none()
     if address is None:
@@ -348,7 +359,8 @@ async def delete_address(
             detail="Address not found",
         )
 
-    await db.delete(address)
+    address.deleted_at = datetime.now(timezone.utc)
+    address.is_current = False
     await db.commit()
     return DeleteAddressResponse(message="Address deleted")
 
@@ -363,7 +375,11 @@ async def set_current_address(
     parsed_address_id = parse_address_id(address_id)
 
     result = await db.execute(
-        select(Address).where(Address.id == parsed_address_id, Address.user_id == user_id)
+        select(Address).where(
+            Address.id == parsed_address_id,
+            Address.user_id == user_id,
+            Address.deleted_at.is_(None),
+        )
     )
     target = result.scalar_one_or_none()
     if target is None:
@@ -374,7 +390,7 @@ async def set_current_address(
 
     await db.execute(
         update(Address)
-        .where(Address.user_id == user_id)
+        .where(Address.user_id == user_id, Address.deleted_at.is_(None))
         .values(is_current=False)
     )
     target.is_current = True

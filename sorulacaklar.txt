@@ -2,3 +2,6 @@ Register bizde mi olacak
 Eventleri nasıl yapacaz
 (userId ve deviceToken) mi unique olsun yoksa sadece userId mi? İlkinde birden fazla aktif device tutuluyor, token expire olsa bile db'de tutuluyor. DeviceId eklenmeli bence ve upsert özelliği olmalı
 Mobile istemese bile aktif adresi değiştirme endpointi ekledim!!!
+PUT /api/v1/users/me/addresses/{id} mobilin bu isteğinin request kısmı bence çok saçma, bir kere adreste sadece bu kadar field yok, bu kadarı güncellenecekse patch istenilmeli, bence PUT talebi doğru ancak adres güncelleme ihtiyacımız olduğu zaman sadece title, sokak veya location değişmeyiz genelde o yüzden mobilin istediği endpointi yazmadım
+DELETE /api/v1/users/me/addresses/{id} bu endpointi soft delete'e çevirdim aksi halde order service eski siparişlerin adreslerinde null görebilirdik
+
