@@ -2,7 +2,7 @@ from uuid import UUID
 
 import bcrypt
 from fastapi import APIRouter, Depends, Header, HTTPException, Path, status
-from sqlalchemy import or_, select
+from sqlalchemy import or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -20,6 +20,7 @@ from app.schemas.user import (
     DeviceRegisterResponse,
     RegisterRequest,
     RegisterResponse,
+    SetCurrentAddressResponse,
     UpdateMeRequest,
     UserMeResponse,
 )
@@ -96,7 +97,13 @@ def to_address_list_response(address: Address) -> AddressListResponse:
     )
 
 
-def to_me_response(user: User) -> UserMeResponse:
+async def get_user_addresses(user_id: UUID, db: AsyncSession) -> list[AddressListResponse]:
+    result = await db.execute(select(Address).where(Address.user_id == user_id))
+    addresses = result.scalars().all()
+    return [to_address_list_response(address) for address in addresses]
+
+
+def to_me_response(user: User, addresses: list[AddressListResponse]) -> UserMeResponse:
     return UserMeResponse(
         id=f"user_{user.id}",
         name=user.name,
@@ -104,6 +111,8 @@ def to_me_response(user: User) -> UserMeResponse:
         email=user.email,
         phone_number=user.phone,
         role=user.role.value,
+        is_active=user.is_active,
+        addresses=addresses,
         notification_preferences=UserMeResponse.NotificationPreferences(
             push_enabled=True,
             sms_enabled=False,
@@ -177,7 +186,8 @@ async def get_me(
     db: AsyncSession = Depends(get_db),
 ):
     user = await get_current_user(user_id=user_id, db=db)
-    return to_me_response(user)
+    addresses = await get_user_addresses(user_id=user_id, db=db)
+    return to_me_response(user, addresses)
 
 
 @router.put("/me", response_model=UserMeResponse)
@@ -214,7 +224,8 @@ async def update_me(
 
     await db.commit()
     await db.refresh(user)
-    return to_me_response(user)
+    addresses = await get_user_addresses(user_id=user_id, db=db)
+    return to_me_response(user, addresses)
 
 
 @router.post("/me/device", response_model=DeviceRegisterResponse)
@@ -256,9 +267,7 @@ async def list_addresses(
     db: AsyncSession = Depends(get_db),
 ):
     await get_current_user(user_id=user_id, db=db)
-    result = await db.execute(select(Address).where(Address.user_id == user_id))
-    addresses = result.scalars().all()
-    return [to_address_list_response(address) for address in addresses]
+    return await get_user_addresses(user_id=user_id, db=db)
 
 
 @router.post("/me/addresses", response_model=AddressResponse, status_code=status.HTTP_201_CREATED)
@@ -342,3 +351,33 @@ async def delete_address(
     await db.delete(address)
     await db.commit()
     return DeleteAddressResponse(message="Address deleted")
+
+
+@router.patch("/me/addresses/{address_id}/current", response_model=SetCurrentAddressResponse)
+async def set_current_address(
+    address_id: str = Path(..., description="Address ID"),
+    user_id: UUID = Depends(get_current_user_id),
+    db: AsyncSession = Depends(get_db),
+):
+    await get_current_user(user_id=user_id, db=db)
+    parsed_address_id = parse_address_id(address_id)
+
+    result = await db.execute(
+        select(Address).where(Address.id == parsed_address_id, Address.user_id == user_id)
+    )
+    target = result.scalar_one_or_none()
+    if target is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Address not found",
+        )
+
+    await db.execute(
+        update(Address)
+        .where(Address.user_id == user_id)
+        .values(is_current=False)
+    )
+    target.is_current = True
+    await db.commit()
+
+    return SetCurrentAddressResponse(message="Current address updated")

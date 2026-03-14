@@ -1,0 +1,4 @@
+Register bizde mi olacak
+Eventleri nasıl yapacaz
+(userId ve deviceToken) mi unique olsun yoksa sadece userId mi? İlkinde birden fazla aktif device tutuluyor, token expire olsa bile db'de tutuluyor. DeviceId eklenmeli bence ve upsert özelliği olmalı
+Mobile istemese bile aktif adresi değiştirme endpointi ekledim!!!

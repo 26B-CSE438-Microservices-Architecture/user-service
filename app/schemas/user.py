@@ -17,6 +17,8 @@ class UserMeResponse(BaseModel):
     email: str
     phone_number: str
     role: str
+    is_active: bool
+    addresses: list["AddressListResponse"] = []
     notification_preferences: NotificationPreferences
 
 
@@ -118,6 +120,10 @@ class DeleteAddressResponse(BaseModel):
     message: str
 
 
+class SetCurrentAddressResponse(BaseModel):
+    message: str
+
+
 class InternalUserResponse(BaseModel):
     id: UUID
     name: str
@@ -150,3 +156,6 @@ class InternalUserByEmailResponse(BaseModel):
     hashedPassword: str
     role: str
     active: bool
+
+
+UserMeResponse.model_rebuild()

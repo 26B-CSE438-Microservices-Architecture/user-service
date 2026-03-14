@@ -12,6 +12,7 @@ from app.schemas.user import (
     InternalUserResponse,
     RegisterRequest,
     RegisterResponse,
+    SetCurrentAddressResponse,
     UpdateMeRequest,
     UserMeResponse,
 )
@@ -30,6 +31,7 @@ __all__ = [
     "InternalUserResponse",
     "RegisterRequest",
     "RegisterResponse",
+    "SetCurrentAddressResponse",
     "UpdateMeRequest",
     "UserMeResponse",
 ]
