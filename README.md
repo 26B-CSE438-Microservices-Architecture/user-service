@@ -1,482 +1,641 @@
 # User Service
 
-> **CSE 438 – Microservice Architecture | Spring 2026**
-> Term Project: Trendyol Go Clone — User Team
+User Service, FastAPI tabanlı bir kullanıcı mikroservisidir. Kullanıcı profili, adres, cihaz ve favori satıcı verilerini yönetir.
+
+## Base URL ve Dokümantasyon
+
+- API: `http://localhost:8000`
+- Swagger UI: `http://localhost:8000/docs`
+- Health: `GET /actuator/health`
+- Admin Panel (SQLAdmin): `http://localhost:8000/admin`
+
+## Kimlik ve Header Bilgisi
+
+Public kullanıcı endpointlerinde servis JWT doğrulamaz; gateway'den gelen header'ı kullanır:
+
+- `X-User-Id: <uuid>` (zorunlu, `/register` hariç)
+
+`X-User-Id` geçersiz formatta ise `400 Invalid X-User-Id header` döner.
 
 ---
 
-## Overview
+## Endpoint Detayları
 
-The User Service is the single source of truth for **user profile and account data** across the Trendyol Go platform. It owns the `User` bounded context — managing user registration, profile information, roles, and delivery addresses.
+## 1) Public Endpoints (`/api/v1/users`)
 
-> **Note:** Authentication (login, JWT issuance, token validation) is **not** the responsibility of this service. That concern belongs to the **Gateway/Auth Service**. This service exposes user data; the Gateway/Auth service controls access to it.
+### `POST /api/v1/users/register`
 
----
+Yeni kullanıcı kaydı.
 
-## Responsibilities
-
-- User registration (creating accounts)
-- Storing and managing user profile data (name, email, phone)
-- Role assignment: `CUSTOMER`, `RESTAURANT_OWNER`, `ADMIN`
-- Delivery address book management per user
-- Providing user data to other services via internal API
-- Publishing user lifecycle domain events
-
----
-
-## Requirements
-
-### Functional Requirements
-
-
-| #     | Requirement                                                                         |
-| ----- | ----------------------------------------------------------------------------------- |
-| FR-01 | A new user can register with name, email, phone number, password, and role          |
-| FR-02 | Passwords are stored securely (hashed — handled by this service before persistence) |
-| FR-03 | Users can view their own profile                                                    |
-| FR-04 | Users can update their profile fields (name, phone)                                 |
-| FR-05 | Users can add, list, and delete delivery addresses                                  |
-| FR-06 | Admins can list, deactivate, or delete any user account                             |
-| FR-07 | Other services can fetch a user's basic info by user ID via an internal endpoint    |
-| FR-08 | The service publishes domain events when a user is created, updated, or deactivated |
-| FR-09 | Email and phone number must be unique across all users                              |
-| FR-10 | A user's role determines what actions they can perform across the platform          |
-
-
-### Non-Functional Requirements
-
-
-| #      | Requirement                                                                         |
-| ------ | ----------------------------------------------------------------------------------- |
-| NFR-01 | Passwords must be hashed with bcrypt (cost factor ≥ 12) before storage              |
-| NFR-02 | Service must be independently deployable and horizontally scalable                  |
-| NFR-03 | PII fields (email, phone) should be encrypted at rest                               |
-| NFR-04 | Structured JSON logging with trace/correlation IDs on every log line                |
-| NFR-05 | Health check endpoints for Kubernetes liveness and readiness probes                 |
-| NFR-06 | Internal user lookup must respond in < 50 ms (p99)                                  |
-| NFR-07 | All communication with other services follows shared API style and auth conventions |
-
-
----
-
-## API Interfaces
-
-> Public base path: `/api/v1/users`
-> Internal base path: `/internal/v1/users`
-> All request/response bodies are `application/json`
-> Public endpoints expect the Gateway/Auth service to forward a verified `X-User-Id` and `X-User-Role` header — this service does **not** validate JWTs directly.
-
----
-
-### Public Endpoints
-
-#### `POST /api/v1/users/register`
-
-Register a new user. This is the only unauthenticated public endpoint on this service.
-
-**Request Body:**
+Request body:
 
 ```json
 {
-  "name": "Ali Veli",
+  "name": "Ali",
+  "surname": "Veli",
   "email": "ali@example.com",
-  "phone": "+905551234567",
-  "password": "SecurePass123!",
+  "phone": "+905551112233",
+  "password": "StrongPass123!",
   "role": "CUSTOMER"
 }
 ```
 
-**Response `201 Created`:**
+Response `201 Created`:
 
 ```json
 {
-  "id": "uuid",
-  "name": "Ali Veli",
+  "id": "f2f1a57d-9e12-47d3-83fe-0db3b0f7f8d9",
+  "name": "Ali",
+  "surname": "Veli",
   "email": "ali@example.com",
-  "phone": "+905551234567",
+  "phone": "+905551112233",
   "role": "CUSTOMER",
-  "createdAt": "2026-03-01T10:00:00Z"
+  "created_at": "2026-03-14T12:34:56.000000Z"
 }
 ```
 
-**Error cases:** `409 Conflict` if email or phone already exists.
+Hata:
+
+- `409 Conflict`: `Email or phone already exists`
+- `400 Bad Request`: `Invalid role`
 
 ---
 
-#### `GET /api/v1/users/me`
+### `GET /api/v1/users/me`
 
-Get the authenticated user's own profile.
-Headers: `X-User-Id: uuid`, `X-User-Role: CUSTOMER` (injected by Gateway)
+Mevcut kullanıcı profilini ve adres listesini döner.
 
-**Response `200 OK`:**
+Headers:
+
+- `X-User-Id: <uuid>`
+
+Response `200 OK`:
 
 ```json
 {
-  "id": "uuid",
-  "name": "Ali Veli",
+  "id": "user_f2f1a57d-9e12-47d3-83fe-0db3b0f7f8d9",
+  "name": "Ali",
+  "surname": "Veli",
   "email": "ali@example.com",
-  "phone": "+905551234567",
+  "phone_number": "+905551112233",
   "role": "CUSTOMER",
-  "active": true,
+  "is_active": true,
   "addresses": [
     {
-      "id": "uuid",
-      "label": "Home",
-      "street": "Atatürk Cad. No:5",
+      "id": "addr_57f1dd6f-b90b-462b-9d64-e9a67b69cc74",
+      "address_title": "Ev",
       "city": "Antalya",
-      "postalCode": "07100",
-      "lat": 36.8969,
-      "lng": 30.7133
+      "district": "Muratpaşa",
+      "neighborhood": "Yıldız",
+      "street": "Atatürk Cad.",
+      "building_no": "12",
+      "floor": "3",
+      "apartment_no": "8",
+      "address_description": "Kapı ziline basınız",
+      "phone": "+905551112233",
+      "location": {
+        "lat": 36.8969,
+        "lng": 30.7133
+      },
+      "masked_phone": "905******33",
+      "shows_map_preview": true,
+      "is_current": true
     }
   ],
-  "createdAt": "2026-03-01T10:00:00Z"
+  "notification_preferences": {
+    "push_enabled": true,
+    "sms_enabled": false,
+    "email_enabled": true
+  }
 }
+```
+
+Hata:
+
+- `404 Not Found`: `User not found`
+
+---
+
+### `PUT /api/v1/users/me`
+
+Kullanıcı profil güncellemesi (`name`, `surname`, `phone`).
+
+Headers:
+
+- `X-User-Id: <uuid>`
+
+Request body (en az bir alan):
+
+```json
+{
+  "name": "Ali",
+  "surname": "Veli",
+  "phone": "+905559998877"
+}
+```
+
+Response `200 OK`: `GET /me` ile aynı response formatı.
+
+Hata:
+
+- `400 Bad Request`: `At least one field (name, surname, or phone) must be provided`
+- `409 Conflict`: `Phone already exists`
+- `404 Not Found`: `User not found`
+
+---
+
+### `POST /api/v1/users/me/device`
+
+Kullanıcıya cihaz token kaydı yapar (varsa günceller/aktif eder).
+
+Headers:
+
+- `X-User-Id: <uuid>`
+
+Request body:
+
+```json
+{
+  "device_token": "expo_push_token_or_fcm_token",
+  "platform": "ios"
+}
+```
+
+`platform` değerleri: `ios`, `android`, `web`
+
+Response `200 OK`:
+
+```json
+{
+  "message": "Device registered successfully"
+}
+```
+
+Hata:
+
+- `404 Not Found`: `User not found`
+
+---
+
+### `GET /api/v1/users/me/addresses`
+
+Kullanıcının silinmemiş (`deleted_at is null`) adreslerini listeler.
+
+Headers:
+
+- `X-User-Id: <uuid>`
+
+Query: yok.
+
+Response `200 OK`:
+
+```json
+[
+  {
+    "id": "addr_57f1dd6f-b90b-462b-9d64-e9a67b69cc74",
+    "address_title": "Ev",
+    "city": "Antalya",
+    "district": "Muratpaşa",
+    "neighborhood": "Yıldız",
+    "street": "Atatürk Cad.",
+    "building_no": "12",
+    "floor": "3",
+    "apartment_no": "8",
+    "address_description": "Kapı ziline basınız",
+    "phone": "+905551112233",
+    "location": {
+      "lat": 36.8969,
+      "lng": 30.7133
+    },
+    "masked_phone": "905******33",
+    "shows_map_preview": true,
+    "is_current": true
+  }
+]
 ```
 
 ---
 
-#### `PUT /api/v1/users/me`
+### `POST /api/v1/users/me/addresses`
 
-Update the authenticated user's own profile (name, phone only — email changes require a separate flow).
+Yeni adres ekler.
 
-**Request Body (partial update):**
+Headers:
 
-```json
-{
-  "name": "Ali Veli Updated",
-  "phone": "+905559876543"
-}
-```
+- `X-User-Id: <uuid>`
 
-**Response `200 OK`:** *(updated user object)*
-
----
-
-#### `POST /api/v1/users/me/addresses`
-
-Add a new delivery address to the authenticated user's address book.
-
-**Request Body:**
+Request body:
 
 ```json
 {
-  "label": "Home",
-  "street": "Atatürk Cad. No:5",
+  "address_title": "Ev",
   "city": "Antalya",
-  "postalCode": "07100",
-  "lat": 36.8969,
-  "lng": 30.7133
+  "district": "Muratpaşa",
+  "neighborhood": "Yıldız",
+  "street": "Atatürk Cad.",
+  "building_no": "12",
+  "floor": "3",
+  "apartment_no": "8",
+  "address_description": "Kapı ziline basınız",
+  "phone": "+905551112233",
+  "location": {
+    "lat": 36.8969,
+    "lng": 30.7133
+  }
 }
 ```
 
-**Response `201 Created`:**
+Response `201 Created`:
 
 ```json
 {
-  "id": "uuid",
-  "label": "Home",
-  "street": "Atatürk Cad. No:5",
+  "id": "addr_57f1dd6f-b90b-462b-9d64-e9a67b69cc74",
+  "address_title": "Ev",
   "city": "Antalya",
-  "postalCode": "07100",
-  "lat": 36.8969,
-  "lng": 30.7133
-}
-```
-
----
-
-#### `GET /api/v1/users/me/addresses`
-
-List all saved addresses of the authenticated user.
-
-**Response `200 OK`:** *(array of address objects)*
-
----
-
-#### `DELETE /api/v1/users/me/addresses/{addressId}`
-
-Remove a delivery address.
-
-**Response `204 No Content`**
-
----
-
-### Internal Endpoints (Service-to-Service Only)
-
-These endpoints are **not exposed through the API Gateway**. They are only reachable within the Kubernetes cluster network by trusted services.
-
-#### `GET /internal/v1/users/{userId}`
-
-Fetch basic user profile by ID. Used by Order, Payment, and Notification services.
-
-**Response `200 OK`:**
-
-```json
-{
-  "id": "uuid",
-  "name": "Ali Veli",
-  "email": "ali@example.com",
-  "phone": "+905551234567",
-  "role": "CUSTOMER",
-  "active": true
-}
-```
-
-**Response `404 Not Found`** if user does not exist.
-
----
-
-#### `POST /internal/v1/users/lookup`
-
-Bulk fetch multiple users by a list of IDs (used by Order or Restaurant services for batch operations).
-
-**Request Body:**
-
-```json
-{
-  "userIds": ["uuid1", "uuid2", "uuid3"]
-}
-```
-
-**Response `200 OK`:**
-
-```json
-{
-  "users": [
-    { "id": "uuid1", "name": "...", "role": "CUSTOMER", "active": true },
-    { "id": "uuid2", "name": "...", "role": "RESTAURANT_OWNER", "active": true }
-  ]
-}
-```
-
----
-
-#### `GET /internal/v1/users/by-email?email={email}`
-
-Look up a user by email address. Used by the **Gateway/Auth service** during the login flow to retrieve the user record (including hashed password) for credential verification.
-
-**Response `200 OK`:**
-
-```json
-{
-  "id": "uuid",
-  "email": "ali@example.com",
-  "hashedPassword": "$2b$12$...",
-  "role": "CUSTOMER",
-  "active": true
-}
-```
-
-> ⚠️ This endpoint returns sensitive data and must only be called by the Gateway/Auth service within the cluster.
-
----
-
-### Admin Endpoints
-
-> Require `X-User-Role: ADMIN` header forwarded by the Gateway.
-
-
-| Method  | Path                                  | Description                                                                    |
-| ------- | ------------------------------------- | ------------------------------------------------------------------------------ |
-| `GET`   | `/api/v1/admin/users`                 | List all users (paginated, filterable by role/status)                          |
-| `GET`   | `/api/v1/admin/users/{id}`            | Get any user by ID                                                             |
-| `PATCH` | `/api/v1/admin/users/{id}/deactivate` | Soft delete — marks user as deleted (`deletedAt` timestamp set, data retained) |
-| `PATCH` | `/api/v1/admin/users/{id}/activate`   | Re-activate a user account                                                     |
-
-
-> ℹ️ **No hard delete.** User records are never physically removed from the database. This preserves referential integrity for historical Order, Payment, and Delivery records that reference a `userId`. A soft-deleted user cannot log in and is excluded from all normal queries, but their data remains intact.
-
----
-
-## Domain Events Published
-
-The User Service publishes these events to the message broker (e.g., RabbitMQ). Other services subscribe as needed.
-
-
-| Event             | Topic              | Trigger                                             |
-| ----------------- | ------------------ | --------------------------------------------------- |
-| `UserRegistered`  | `user.registered`  | New user successfully created                       |
-| `UserUpdated`     | `user.updated`     | Profile fields changed                              |
-| `UserDeactivated` | `user.deactivated` | Admin soft-deletes or deactivates an account        |
-| `UserReactivated` | `user.reactivated` | Admin re-activates a previously deactivated account |
-
-
-`**UserRegistered` Payload Example:**
-
-```json
-{
-  "eventId": "uuid",
-  "eventType": "UserRegistered",
-  "timestamp": "2026-03-01T10:00:00Z",
-  "data": {
-    "userId": "uuid",
-    "name": "Ali Veli",
-    "email": "ali@example.com",
-    "role": "CUSTOMER"
+  "district": "Muratpaşa",
+  "neighborhood": "Yıldız",
+  "street": "Atatürk Cad.",
+  "building_no": "12",
+  "floor": "3",
+  "apartment_no": "8",
+  "address_description": "Kapı ziline basınız",
+  "phone": "+905551112233",
+  "location": {
+    "lat": 36.8969,
+    "lng": 30.7133
   }
 }
 ```
 
 ---
 
-## Inter-Service Dependencies
+### `PUT /api/v1/users/me/addresses/{address_id}`
 
+Adresi günceller (partial update). `address_id` hem `addr_<uuid>` hem düz `uuid` kabul eder.
 
-| Service            | Direction | Communication                                 | Purpose                                         |
-| ------------------ | --------- | --------------------------------------------- | ----------------------------------------------- |
-| Gateway/Auth       | Inbound   | Internal HTTP (`/internal/v1/users/by-email`) | Credential lookup during login                  |
-| Gateway/Auth       | Inbound   | Public HTTP (proxied)                         | Routes authenticated requests with user headers |
-| Order Service      | Inbound   | Internal HTTP (`/internal/v1/users/{id}`)     | Fetch customer info for orders                  |
-| Payment Service    | Inbound   | Internal HTTP (`/internal/v1/users/{id}`)     | Fetch billing info                              |
-| Restaurant Service | Inbound   | Internal HTTP (`/internal/v1/users/{id}`)     | Fetch restaurant owner info                     |
+Headers:
 
+- `X-User-Id: <uuid>`
 
----
+Path param:
 
-## Tech Stack
+- `address_id` (string)
 
-
-| Concern              | Choice                                      |
-| -------------------- | ------------------------------------------- |
-| Language / Framework | Python 3.9.6 + FastAPI                      |
-| Database             | PostgreSQL 16                               |
-| ORM                  | SQLAlchemy 2 (async) + Alembic (migrations) |
-| Messaging            | RabbitMQ (aio-pika) — *planned*             |
-| Containerization     | Docker + Docker Compose                     |
-| API Docs             | OpenAPI 3 / Swagger UI (FastAPI built-in)   |
-
-
----
-
-## Project Structure
-
-```
-user-service/
-├── app/
-│   ├── __init__.py
-│   ├── main.py              # FastAPI application entry point
-│   ├── config.py            # Pydantic Settings (env-based configuration)
-│   ├── database.py          # SQLAlchemy async engine & session factory
-│   ├── models/
-│   │   ├── __init__.py
-│   │   ├── user.py          # User model & UserRole enum
-│   │   └── address.py       # Address model
-│   └── routers/             # API route handlers (to be implemented)
-│       └── __init__.py
-├── alembic/
-│   ├── env.py               # Async Alembic configuration
-│   ├── script.py.mako
-│   └── versions/
-│       └── 001_initial_schema.py
-├── alembic.ini
-├── requirements.txt
-├── Dockerfile
-├── docker-compose.yml
-├── .env.example
-└── .dockerignore
-```
-
----
-
-## Database Schema
-
-### `users` table
-
-
-| Column            | Type                                           | Constraints            |
-| ----------------- | ---------------------------------------------- | ---------------------- |
-| `id`              | UUID                                           | Primary Key            |
-| `name`            | VARCHAR(255)                                   | NOT NULL               |
-| `email`           | VARCHAR(255)                                   | NOT NULL, UNIQUE       |
-| `phone`           | VARCHAR(20)                                    | NOT NULL, UNIQUE       |
-| `hashed_password` | VARCHAR(255)                                   | NOT NULL               |
-| `role`            | ENUM (`CUSTOMER`, `RESTAURANT_OWNER`, `ADMIN`) | NOT NULL               |
-| `is_active`       | BOOLEAN                                        | DEFAULT `true`         |
-| `created_at`      | TIMESTAMPTZ                                    | DEFAULT `now()`        |
-| `updated_at`      | TIMESTAMPTZ                                    | DEFAULT `now()`        |
-| `deleted_at`      | TIMESTAMPTZ                                    | NULLABLE (soft delete) |
-
-
-### `addresses` table
-
-
-| Column        | Type             | Constraints                       |
-| ------------- | ---------------- | --------------------------------- |
-| `id`          | UUID             | Primary Key                       |
-| `user_id`     | UUID             | FK → `users.id` ON DELETE CASCADE |
-| `label`       | VARCHAR(100)     | NOT NULL                          |
-| `street`      | VARCHAR(255)     | NOT NULL                          |
-| `city`        | VARCHAR(100)     | NOT NULL                          |
-| `postal_code` | VARCHAR(10)      | NOT NULL                          |
-| `lat`         | DOUBLE PRECISION | NULLABLE                          |
-| `lng`         | DOUBLE PRECISION | NULLABLE                          |
-| `created_at`  | TIMESTAMPTZ      | DEFAULT `now()`                   |
-
-
----
-
-## Getting Started
-
-### Prerequisites
-
-- Docker & Docker Compose
-
-### Run
-
-```bash
-# Start PostgreSQL and the application
-docker compose up -d
-
-# Run database migrations
-docker compose exec user-service alembic upgrade head
-```
-
-The service will be available at `http://localhost:8000`.
-
-- **Swagger UI:** [http://localhost:8000/docs](http://localhost:8000/docs)
-- **Health check:** [http://localhost:8000/actuator/health](http://localhost:8000/actuator/health)
-
-### Environment Variables
-
-
-| Variable       | Default                                                      | Description                      |
-| -------------- | ------------------------------------------------------------ | -------------------------------- |
-| `APP_NAME`     | `user-service`                                               | Application name                 |
-| `APP_PORT`     | `8000`                                                       | HTTP port                        |
-| `DATABASE_URL` | `postgresql+asyncpg://postgres:postgres@user-db:5432/userdb` | Async database connection string |
-
-
-Copy `.env.example` to `.env` to override defaults.
-
----
-
-## Health & Observability
-
-
-| Endpoint                | Description                               |
-| ----------------------- | ----------------------------------------- |
-| `GET /actuator/health`  | Liveness & readiness for K8s probes       |
-| `GET /actuator/metrics` | Prometheus-compatible metrics *(planned)* |
-
-
-- Distributed tracing via OpenTelemetry; `traceId` propagated in all service-to-service calls *(planned)*
-- All logs include `traceId`, `userId`, `requestId` fields *(planned)*
-
----
-
-## Error Response Format
+Request body (örnek):
 
 ```json
 {
-  "timestamp": "2026-03-01T10:00:00Z",
-  "status": 409,
-  "error": "Conflict",
-  "code": "EMAIL_ALREADY_EXISTS",
-  "message": "A user with this email already exists",
-  "path": "/api/v1/users/register"
+  "address_title": "Ofis",
+  "district": "Kepez",
+  "location": {
+    "lat": 36.90,
+    "lng": 30.70
+  }
+}
+```
+
+Response `200 OK`: `POST /me/addresses` response formatı ile aynı.
+
+Hata:
+
+- `400 Bad Request`: `Invalid address id`
+- `404 Not Found`: `Address not found`
+
+---
+
+### `DELETE /api/v1/users/me/addresses/{address_id}`
+
+Adresi soft delete yapar (`deleted_at` set edilir, `is_current=false` yapılır).
+
+Headers:
+
+- `X-User-Id: <uuid>`
+
+Path param:
+
+- `address_id` (string)
+
+Request body: yok.
+
+Response `200 OK`:
+
+```json
+{
+  "message": "Address deleted"
+}
+```
+
+Hata:
+
+- `400 Bad Request`: `Invalid address id`
+- `404 Not Found`: `Address not found`
+
+---
+
+### `PATCH /api/v1/users/me/addresses/{address_id}/current`
+
+Kullanıcının aktif adresini değiştirir; önce tüm adresleri `is_current=false`, sonra hedef adresi `true` yapar.
+
+Headers:
+
+- `X-User-Id: <uuid>`
+
+Path param:
+
+- `address_id` (string)
+
+Request body: yok.
+
+Response `200 OK`:
+
+```json
+{
+  "message": "Current address updated"
+}
+```
+
+Hata:
+
+- `400 Bad Request`: `Invalid address id`
+- `404 Not Found`: `Address not found`
+
+---
+
+### `POST /api/v1/users/me/favorites/{vendor_id}`
+
+Kullanıcının favori satıcılarına ekler (aynı kayıt varsa idempotent davranır).
+
+Headers:
+
+- `X-User-Id: <uuid>`
+
+Path param:
+
+- `vendor_id` (string)
+
+Request body: yok.
+
+Response `200 OK`:
+
+```json
+{
+  "message": "Vendor added to favorites"
+}
+```
+
+Hata:
+
+- `400 Bad Request`: `Invalid vendor_id`
+- `404 Not Found`: `User not found`
+
+---
+
+### `DELETE /api/v1/users/me/favorites/{vendor_id}`
+
+Favori satıcıdan çıkarır (kayıt yoksa yine başarılı döner).
+
+Headers:
+
+- `X-User-Id: <uuid>`
+
+Path param:
+
+- `vendor_id` (string)
+
+Request body: yok.
+
+Response `200 OK`:
+
+```json
+{
+  "message": "Vendor removed from favorites"
+}
+```
+
+Hata:
+
+- `400 Bad Request`: `Invalid vendor_id`
+- `404 Not Found`: `User not found`
+
+---
+
+## 2) Internal Endpoints (`/internal/v1/users`)
+
+### `GET /internal/v1/users/{user_id}`
+
+Kullanıcıyı ID ile döner.
+
+Path param:
+
+- `user_id` (UUID)
+
+Response `200 OK`:
+
+```json
+{
+  "id": "f2f1a57d-9e12-47d3-83fe-0db3b0f7f8d9",
+  "name": "Ali",
+  "surname": "Veli",
+  "email": "ali@example.com",
+  "phone": "+905551112233",
+  "role": "CUSTOMER",
+  "active": true
+}
+```
+
+Hata:
+
+- `404 Not Found`: `User not found`
+
+---
+
+### `POST /internal/v1/users/lookup`
+
+Toplu kullanıcı sorgusu.
+
+Request body:
+
+```json
+{
+  "userIds": [
+    "f2f1a57d-9e12-47d3-83fe-0db3b0f7f8d9",
+    "7e3978a1-330d-46ea-bcf7-2283f42d6f59"
+  ]
+}
+```
+
+Response `200 OK`:
+
+```json
+{
+  "users": [
+    {
+      "id": "f2f1a57d-9e12-47d3-83fe-0db3b0f7f8d9",
+      "name": "Ali",
+      "surname": "Veli",
+      "role": "CUSTOMER",
+      "active": true
+    },
+    {
+      "id": "7e3978a1-330d-46ea-bcf7-2283f42d6f59",
+      "name": "Ayşe",
+      "surname": "Yılmaz",
+      "role": "COURIER",
+      "active": true
+    }
+  ]
+}
+```
+
+Not: `userIds` boş verilirse `{ "users": [] }` döner.
+
+---
+
+### `GET /internal/v1/users/by-email?email={email}`
+
+Email ile kullanıcı sorgusu (auth servisinin credential kontrolünde kullanımı için).
+
+Query param:
+
+- `email` (string, zorunlu)
+
+Örnek istek:
+
+```http
+GET /internal/v1/users/by-email?email=ali@example.com
+```
+
+Response `200 OK`:
+
+```json
+{
+  "id": "f2f1a57d-9e12-47d3-83fe-0db3b0f7f8d9",
+  "email": "ali@example.com",
+  "hashedPassword": "$2b$12$abcd...",
+  "role": "CUSTOMER",
+  "active": true
+}
+```
+
+Hata:
+
+- `404 Not Found`: `User not found`
+
+---
+
+## 3) Health Endpoint
+
+### `GET /actuator/health`
+
+Request body/query: yok.
+
+Response `200 OK`:
+
+```json
+{
+  "status": "UP"
 }
 ```
 
 ---
 
-*CSE 438 – User Team | Spring 2026*
+## Veritabanı Şeması (Tablo Formatı)
+
+### `users`
+
+| Kolon | Tip | Constraint / Not |
+| --- | --- | --- |
+| `id` | `UUID` | PK |
+| `name` | `VARCHAR(255)` | NOT NULL |
+| `surname` | `VARCHAR(255)` | NOT NULL |
+| `email` | `VARCHAR(255)` | NOT NULL, UNIQUE, INDEX |
+| `phone` | `VARCHAR(20)` | NOT NULL, UNIQUE, INDEX |
+| `hashed_password` | `VARCHAR(255)` | NOT NULL |
+| `role` | `ENUM(user_role)` | NOT NULL (`CUSTOMER`, `RESTAURANT_OWNER`, `COURIER`, `ADMIN`) |
+| `is_active` | `BOOLEAN` | default `true` |
+| `created_at` | `TIMESTAMPTZ` | default now |
+| `updated_at` | `TIMESTAMPTZ` | default now, on update now |
+| `deleted_at` | `TIMESTAMPTZ` | nullable |
+
+### `addresses`
+
+| Kolon | Tip | Constraint / Not |
+| --- | --- | --- |
+| `id` | `UUID` | PK |
+| `user_id` | `UUID` | FK -> `users.id`, ON DELETE CASCADE, INDEX |
+| `address_title` | `VARCHAR(100)` | NOT NULL |
+| `street` | `VARCHAR(255)` | NOT NULL |
+| `city` | `VARCHAR(100)` | NOT NULL |
+| `district` | `VARCHAR(100)` | NOT NULL |
+| `neighborhood` | `VARCHAR(120)` | NOT NULL |
+| `building_no` | `VARCHAR(20)` | NOT NULL |
+| `floor` | `VARCHAR(20)` | NOT NULL |
+| `apartment_no` | `VARCHAR(20)` | NOT NULL |
+| `address_description` | `VARCHAR(255)` | nullable |
+| `phone` | `VARCHAR(20)` | NOT NULL |
+| `is_current` | `BOOLEAN` | default `false` |
+| `lat` | `FLOAT` | nullable |
+| `lng` | `FLOAT` | nullable |
+| `created_at` | `TIMESTAMPTZ` | default now |
+| `deleted_at` | `TIMESTAMPTZ` | nullable (soft delete) |
+
+### `user_devices`
+
+| Kolon | Tip | Constraint / Not |
+| --- | --- | --- |
+| `id` | `UUID` | PK |
+| `user_id` | `UUID` | FK -> `users.id`, ON DELETE CASCADE, INDEX |
+| `device_token` | `VARCHAR(512)` | NOT NULL |
+| `platform` | `ENUM(device_platform)` | NOT NULL (`ios`, `android`, `web`) |
+| `is_active` | `BOOLEAN` | NOT NULL, default `true` |
+| `created_at` | `TIMESTAMPTZ` | default now |
+| `updated_at` | `TIMESTAMPTZ` | default now, on update now |
+
+Ek unique constraint:
+
+- `uq_user_device_token` -> (`user_id`, `device_token`)
+
+### `user_favorites`
+
+| Kolon | Tip | Constraint / Not |
+| --- | --- | --- |
+| `id` | `UUID` | PK |
+| `user_id` | `UUID` | FK -> `users.id`, ON DELETE CASCADE, INDEX |
+| `vendor_id` | `VARCHAR(100)` | NOT NULL |
+| `created_at` | `TIMESTAMPTZ` | default now |
+
+Ek unique constraint:
+
+- `uq_user_vendor_favorite` -> (`user_id`, `vendor_id`)
+
+---
+
+## Kurulum ve Çalıştırma
+
+### Docker
+
+```bash
+docker compose up -d
+```
+
+`docker-compose.yml` içinde servis başlangıcında migration otomatik çalışır:
+
+```bash
+alembic upgrade head
+```
+
+### Lokal
+
+```bash
+pip install -r requirements.txt
+alembic upgrade head
+uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+```
+
+## Ortam Değişkenleri
+
+| Değişken | Default |
+| --- | --- |
+| `APP_NAME` | `user-service` |
+| `APP_PORT` | `8000` |
+| `DATABASE_URL` | `postgresql+asyncpg://postgres:postgres@user-db:5432/userdb` |
