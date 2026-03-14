@@ -124,6 +124,10 @@ class SetCurrentAddressResponse(BaseModel):
     message: str
 
 
+class FavoriteActionResponse(BaseModel):
+    message: str
+
+
 class InternalUserResponse(BaseModel):
     id: UUID
     name: str

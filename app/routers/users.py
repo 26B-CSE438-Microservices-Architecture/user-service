@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.models.address import Address
 from app.models.device import DevicePlatform, UserDevice
+from app.models.favorite import UserFavorite
 from app.models.user import User, UserRole
 from app.schemas.user import (
     AddressCreate,
@@ -19,6 +20,7 @@ from app.schemas.user import (
     DeleteAddressResponse,
     DeviceRegisterRequest,
     DeviceRegisterResponse,
+    FavoriteActionResponse,
     RegisterRequest,
     RegisterResponse,
     SetCurrentAddressResponse,
@@ -397,3 +399,59 @@ async def set_current_address(
     await db.commit()
 
     return SetCurrentAddressResponse(message="Current address updated")
+
+
+@router.post("/me/favorites/{vendor_id}", response_model=FavoriteActionResponse)
+async def add_favorite(
+    vendor_id: str = Path(..., description="Vendor ID"),
+    user_id: UUID = Depends(get_current_user_id),
+    db: AsyncSession = Depends(get_db),
+):
+    await get_current_user(user_id=user_id, db=db)
+    normalized_vendor_id = vendor_id.strip()
+    if not normalized_vendor_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid vendor_id",
+        )
+
+    result = await db.execute(
+        select(UserFavorite).where(
+            UserFavorite.user_id == user_id,
+            UserFavorite.vendor_id == normalized_vendor_id,
+        )
+    )
+    favorite = result.scalar_one_or_none()
+    if favorite is None:
+        db.add(UserFavorite(user_id=user_id, vendor_id=normalized_vendor_id))
+        await db.commit()
+
+    return FavoriteActionResponse(message="Vendor added to favorites")
+
+
+@router.delete("/me/favorites/{vendor_id}", response_model=FavoriteActionResponse)
+async def remove_favorite(
+    vendor_id: str = Path(..., description="Vendor ID"),
+    user_id: UUID = Depends(get_current_user_id),
+    db: AsyncSession = Depends(get_db),
+):
+    await get_current_user(user_id=user_id, db=db)
+    normalized_vendor_id = vendor_id.strip()
+    if not normalized_vendor_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid vendor_id",
+        )
+
+    result = await db.execute(
+        select(UserFavorite).where(
+            UserFavorite.user_id == user_id,
+            UserFavorite.vendor_id == normalized_vendor_id,
+        )
+    )
+    favorite = result.scalar_one_or_none()
+    if favorite is not None:
+        await db.delete(favorite)
+        await db.commit()
+
+    return FavoriteActionResponse(message="Vendor removed from favorites")
