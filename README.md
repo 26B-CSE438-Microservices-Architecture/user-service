@@ -139,6 +139,94 @@ Hata:
 
 ---
 
+### `POST /api/v1/users/me/change-password`
+
+Giriş yapmış kullanıcının şifresini değiştirir.
+
+Headers:
+
+- `X-User-Id: <uuid>`
+
+Request body:
+
+```json
+{
+  "current_password": "OldPass123!",
+  "new_password": "NewPass456!"
+}
+```
+
+Response `200 OK`:
+
+```json
+{
+  "message": "Password changed successfully"
+}
+```
+
+Hata:
+
+- `400 Bad Request`: `Current password is incorrect`
+- `400 Bad Request`: `New password must be different from current password`
+- `404 Not Found`: `User not found`
+
+---
+
+### `POST /api/v1/users/forgot-password/request`
+
+Şifre sıfırlama talebi oluşturur ve kullanıcıya e-posta ile reset link gönderir.
+
+Request body:
+
+```json
+{
+  "email": "ali@example.com"
+}
+```
+
+Response `200 OK`:
+
+```json
+{
+  "message": "If the email exists, a reset link has been sent"
+}
+```
+
+Hata:
+
+- `503 Service Unavailable`: `Failed to send reset email`
+
+---
+
+### `POST /api/v1/users/forgot-password/confirm`
+
+Reset linkteki token ile yeni şifreyi kaydeder.
+
+Request body:
+
+```json
+{
+  "token": "reset_token_from_email_link",
+  "new_password": "NewPass456!"
+}
+```
+
+Response `200 OK`:
+
+```json
+{
+  "message": "Password reset successfully"
+}
+```
+
+Hata:
+
+- `400 Bad Request`: `Invalid or expired token`
+- `400 Bad Request`: `New password must be different from current password`
+- `404 Not Found`: `User not found`
+
+---
+
 ### `GET /api/v1/users/me/addresses`
 
 Kullanıcının silinmemiş (`deleted_at is null`) adreslerini listeler.
@@ -554,6 +642,17 @@ Ek unique constraint:
 
 - `uq_user_vendor_favorite` -> (`user_id`, `vendor_id`)
 
+### `password_reset_tokens`
+
+| Kolon | Tip | Constraint / Not |
+| --- | --- | --- |
+| `id` | `UUID` | PK |
+| `user_id` | `UUID` | FK -> `users.id`, ON DELETE CASCADE, INDEX |
+| `token_hash` | `VARCHAR(64)` | NOT NULL, UNIQUE, INDEX (SHA-256 hash) |
+| `expires_at` | `TIMESTAMPTZ` | NOT NULL |
+| `used_at` | `TIMESTAMPTZ` | nullable |
+| `created_at` | `TIMESTAMPTZ` | default now |
+
 ---
 
 ## Kurulum ve Çalıştırma
@@ -585,3 +684,11 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 | `APP_NAME` | `user-service` |
 | `APP_PORT` | `8000` |
 | `DATABASE_URL` | `postgresql+asyncpg://postgres:postgres@user-db:5432/userdb` |
+| `RESET_PASSWORD_URL_BASE` | `http://localhost:3000/reset-password` |
+| `RESET_PASSWORD_TOKEN_TTL_MINUTES` | `30` |
+| `SMTP_HOST` | `` |
+| `SMTP_PORT` | `587` |
+| `SMTP_USERNAME` | `` |
+| `SMTP_PASSWORD` | `` |
+| `SMTP_USE_TLS` | `true` |
+| `SMTP_FROM_EMAIL` | `no-reply@example.com` |

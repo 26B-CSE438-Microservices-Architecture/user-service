@@ -9,6 +9,7 @@ from app.config import settings
 from app.models.user import Base
 import app.models.address  # noqa: F401 – ensure Address metadata is registered
 import app.models.favorite  # noqa: F401 – ensure UserFavorite metadata is registered
+import app.models.password_reset  # noqa: F401 – ensure PasswordResetToken metadata is registered
 
 config = context.config
 config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)

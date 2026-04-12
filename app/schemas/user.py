@@ -42,6 +42,32 @@ class RegisterResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str
+
+
+class ChangePasswordResponse(BaseModel):
+    message: str
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: str
+
+
+class ForgotPasswordRequestResponse(BaseModel):
+    message: str
+
+
+class ForgotPasswordConfirmRequest(BaseModel):
+    token: str
+    new_password: str
+
+
+class ForgotPasswordConfirmResponse(BaseModel):
+    message: str
+
+
 class AddressLocation(BaseModel):
     lat: float | None = None
     lng: float | None = None

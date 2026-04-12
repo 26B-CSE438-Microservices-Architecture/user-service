@@ -1,4 +1,8 @@
-from datetime import datetime, timezone
+import asyncio
+import hashlib
+import secrets
+from datetime import datetime, timedelta, timezone
+from urllib.parse import urlencode
 from uuid import UUID
 
 import bcrypt
@@ -6,9 +10,12 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Path, status
 from sqlalchemy import or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
 from app.database import get_db
+from app.email_utils import send_password_reset_email
 from app.models.address import Address
 from app.models.favorite import UserFavorite
+from app.models.password_reset import PasswordResetToken
 from app.models.user import User, UserRole
 from app.schemas.user import (
     AddressCreate,
@@ -16,8 +23,14 @@ from app.schemas.user import (
     AddressLocation,
     AddressResponse,
     AddressUpdate,
+    ChangePasswordRequest,
+    ChangePasswordResponse,
     DeleteAddressResponse,
     FavoriteActionResponse,
+    ForgotPasswordConfirmRequest,
+    ForgotPasswordConfirmResponse,
+    ForgotPasswordRequest,
+    ForgotPasswordRequestResponse,
     RegisterRequest,
     RegisterResponse,
     SetCurrentAddressResponse,
@@ -118,6 +131,19 @@ def to_me_response(user: User, addresses: list[AddressListResponse]) -> UserMeRe
     )
 
 
+def hash_password(raw_password: str) -> str:
+    return bcrypt.hashpw(raw_password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+
+
+def hash_reset_token(token: str) -> str:
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def build_reset_link(token: str) -> str:
+    query_string = urlencode({"token": token})
+    return f"{settings.RESET_PASSWORD_URL_BASE}?{query_string}"
+
+
 @router.post("/register", response_model=RegisterResponse, status_code=status.HTTP_201_CREATED)
 async def register_user(
     payload: RegisterRequest,
@@ -150,9 +176,7 @@ async def register_user(
             detail="Invalid role",
         ) from exc
 
-    hashed_password = bcrypt.hashpw(payload.password.encode("utf-8"), bcrypt.gensalt()).decode(
-        "utf-8"
-    )
+    hashed_password = hash_password(payload.password)
 
     user = User(
         name=normalized_name,
@@ -175,6 +199,134 @@ async def register_user(
         role=user.role.value,
         created_at=user.created_at,
     )
+
+
+@router.post("/me/change-password", response_model=ChangePasswordResponse)
+async def change_password(
+    payload: ChangePasswordRequest,
+    user_id: UUID = Depends(get_current_user_id),
+    db: AsyncSession = Depends(get_db),
+):
+    user = await get_current_user(user_id=user_id, db=db)
+
+    if payload.current_password == payload.new_password:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="New password must be different from current password",
+        )
+
+    if not bcrypt.checkpw(
+        payload.current_password.encode("utf-8"),
+        user.hashed_password.encode("utf-8"),
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Current password is incorrect",
+        )
+
+    user.hashed_password = hash_password(payload.new_password)
+    await db.commit()
+
+    return ChangePasswordResponse(message="Password changed successfully")
+
+
+@router.post("/forgot-password/request", response_model=ForgotPasswordRequestResponse)
+async def request_forgot_password(
+    payload: ForgotPasswordRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    normalized_email = payload.email.strip().lower()
+
+    result = await db.execute(
+        select(User).where(
+            User.email == normalized_email,
+            User.is_active.is_(True),
+        )
+    )
+    user = result.scalar_one_or_none()
+
+    if user is not None:
+        raw_token = secrets.token_urlsafe(32)
+        token_record = PasswordResetToken(
+            user_id=user.id,
+            token_hash=hash_reset_token(raw_token),
+            expires_at=datetime.now(timezone.utc)
+            + timedelta(minutes=settings.RESET_PASSWORD_TOKEN_TTL_MINUTES),
+        )
+        db.add(token_record)
+        await db.commit()
+
+        reset_link = build_reset_link(raw_token)
+        try:
+            await asyncio.to_thread(send_password_reset_email, user.email, reset_link)
+        except Exception as exc:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Failed to send reset email",
+            ) from exc
+
+    return ForgotPasswordRequestResponse(
+        message="If the email exists, a reset link has been sent"
+    )
+
+
+@router.post("/forgot-password/confirm", response_model=ForgotPasswordConfirmResponse)
+async def confirm_forgot_password(
+    payload: ForgotPasswordConfirmRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    now = datetime.now(timezone.utc)
+    token_hash = hash_reset_token(payload.token.strip())
+
+    result = await db.execute(
+        select(PasswordResetToken).where(
+            PasswordResetToken.token_hash == token_hash,
+            PasswordResetToken.used_at.is_(None),
+            PasswordResetToken.expires_at > now,
+        )
+    )
+    token_record = result.scalar_one_or_none()
+    if token_record is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired token",
+        )
+
+    user_result = await db.execute(
+        select(User).where(
+            User.id == token_record.user_id,
+            User.is_active.is_(True),
+        )
+    )
+    user = user_result.scalar_one_or_none()
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found",
+        )
+
+    if bcrypt.checkpw(
+        payload.new_password.encode("utf-8"),
+        user.hashed_password.encode("utf-8"),
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="New password must be different from current password",
+        )
+
+    user.hashed_password = hash_password(payload.new_password)
+    await db.execute(
+        update(PasswordResetToken)
+        .where(
+            PasswordResetToken.user_id == user.id,
+            PasswordResetToken.used_at.is_(None),
+        )
+        .values(used_at=now)
+    )
+    token_record.used_at = now
+    await db.commit()
+
+    return ForgotPasswordConfirmResponse(message="Password reset successfully")
 
 
 @router.get("/me", response_model=UserMeResponse)

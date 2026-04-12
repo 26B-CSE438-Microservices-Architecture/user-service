@@ -117,6 +117,68 @@
 
 ---
 
+## POST /api/v1/users/me/change-password
+
+### Request
+
+```json
+{
+  "current_password": "OldPass123!",
+  "new_password": "NewPass456!"
+}
+```
+
+### Response
+
+```json
+{
+  "message": "Password changed successfully"
+}
+```
+
+---
+
+## POST /api/v1/users/forgot-password/request
+
+### Request
+
+```json
+{
+  "email": "sametbilgin@gmail.com"
+}
+```
+
+### Response
+
+```json
+{
+  "message": "If the email exists, a reset link has been sent"
+}
+```
+
+---
+
+## POST /api/v1/users/forgot-password/confirm
+
+### Request
+
+```json
+{
+  "token": "reset_token_from_email_link",
+  "new_password": "NewPass456!"
+}
+```
+
+### Response
+
+```json
+{
+  "message": "Password reset successfully"
+}
+```
+
+---
+
 ## GET /api/v1/users/me/addresses
 
 ### Response
