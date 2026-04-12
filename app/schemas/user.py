@@ -1,16 +1,10 @@
 from datetime import datetime
-from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict
 
 
 class UserMeResponse(BaseModel):
-    class NotificationPreferences(BaseModel):
-        push_enabled: bool
-        sms_enabled: bool
-        email_enabled: bool
-
     id: str
     name: str
     surname: str
@@ -19,7 +13,6 @@ class UserMeResponse(BaseModel):
     role: str
     is_active: bool
     addresses: list["AddressListResponse"] = []
-    notification_preferences: NotificationPreferences
 
 
 class UpdateMeRequest(BaseModel):
@@ -47,15 +40,6 @@ class RegisterResponse(BaseModel):
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
-
-
-class DeviceRegisterRequest(BaseModel):
-    device_token: str
-    platform: Literal["ios", "android", "web"]
-
-
-class DeviceRegisterResponse(BaseModel):
-    message: str
 
 
 class AddressLocation(BaseModel):

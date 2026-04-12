@@ -46,7 +46,6 @@ class User(Base):
     )
 
     addresses = relationship("Address", back_populates="user", cascade="all, delete-orphan")
-    devices = relationship("UserDevice", back_populates="user", cascade="all, delete-orphan")
     favorites = relationship("UserFavorite", back_populates="user", cascade="all, delete-orphan")
 
     def __repr__(self) -> str:

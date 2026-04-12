@@ -207,7 +207,7 @@ These endpoints are **not exposed through the API Gateway**. They are only reach
 
 #### `GET /internal/v1/users/{userId}`
 
-Fetch basic user profile by ID. Used by Order, Payment, and Notification services.
+Fetch basic user profile by ID. Used by Order and Payment services.
 
 **Response `200 OK`:**
 

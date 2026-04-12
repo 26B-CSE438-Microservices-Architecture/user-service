@@ -101,12 +101,7 @@ Response `200 OK`:
       "shows_map_preview": true,
       "is_current": true
     }
-  ],
-  "notification_preferences": {
-    "push_enabled": true,
-    "sms_enabled": false,
-    "email_enabled": true
-  }
+  ]
 }
 ```
 
@@ -140,39 +135,6 @@ Hata:
 
 - `400 Bad Request`: `At least one field (name, surname, or phone) must be provided`
 - `409 Conflict`: `Phone already exists`
-- `404 Not Found`: `User not found`
-
----
-
-### `POST /api/v1/users/me/device`
-
-Kullanıcıya cihaz token kaydı yapar (varsa günceller/aktif eder).
-
-Headers:
-
-- `X-User-Id: <uuid>`
-
-Request body:
-
-```json
-{
-  "device_token": "expo_push_token_or_fcm_token",
-  "platform": "ios"
-}
-```
-
-`platform` değerleri: `ios`, `android`, `web`
-
-Response `200 OK`:
-
-```json
-{
-  "message": "Device registered successfully"
-}
-```
-
-Hata:
-
 - `404 Not Found`: `User not found`
 
 ---
@@ -578,22 +540,6 @@ Response `200 OK`:
 | `lng` | `FLOAT` | nullable |
 | `created_at` | `TIMESTAMPTZ` | default now |
 | `deleted_at` | `TIMESTAMPTZ` | nullable (soft delete) |
-
-### `user_devices`
-
-| Kolon | Tip | Constraint / Not |
-| --- | --- | --- |
-| `id` | `UUID` | PK |
-| `user_id` | `UUID` | FK -> `users.id`, ON DELETE CASCADE, INDEX |
-| `device_token` | `VARCHAR(512)` | NOT NULL |
-| `platform` | `ENUM(device_platform)` | NOT NULL (`ios`, `android`, `web`) |
-| `is_active` | `BOOLEAN` | NOT NULL, default `true` |
-| `created_at` | `TIMESTAMPTZ` | default now |
-| `updated_at` | `TIMESTAMPTZ` | default now, on update now |
-
-Ek unique constraint:
-
-- `uq_user_device_token` -> (`user_id`, `device_token`)
 
 ### `user_favorites`
 

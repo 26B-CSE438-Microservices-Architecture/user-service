@@ -8,7 +8,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.models.address import Address
-from app.models.device import DevicePlatform, UserDevice
 from app.models.favorite import UserFavorite
 from app.models.user import User, UserRole
 from app.schemas.user import (
@@ -18,8 +17,6 @@ from app.schemas.user import (
     AddressResponse,
     AddressUpdate,
     DeleteAddressResponse,
-    DeviceRegisterRequest,
-    DeviceRegisterResponse,
     FavoriteActionResponse,
     RegisterRequest,
     RegisterResponse,
@@ -118,11 +115,6 @@ def to_me_response(user: User, addresses: list[AddressListResponse]) -> UserMeRe
         role=user.role.value,
         is_active=user.is_active,
         addresses=addresses,
-        notification_preferences=UserMeResponse.NotificationPreferences(
-            push_enabled=True,
-            sms_enabled=False,
-            email_enabled=True,
-        ),
     )
 
 
@@ -231,39 +223,6 @@ async def update_me(
     await db.refresh(user)
     addresses = await get_user_addresses(user_id=user_id, db=db)
     return to_me_response(user, addresses)
-
-
-@router.post("/me/device", response_model=DeviceRegisterResponse)
-async def register_device(
-    payload: DeviceRegisterRequest,
-    user_id: UUID = Depends(get_current_user_id),
-    db: AsyncSession = Depends(get_db),
-):
-    await get_current_user(user_id=user_id, db=db)
-    normalized_token = payload.device_token.strip()
-
-    result = await db.execute(
-        select(UserDevice).where(
-            UserDevice.user_id == user_id,
-            UserDevice.device_token == normalized_token,
-        )
-    )
-    device = result.scalar_one_or_none()
-
-    if device is None:
-        device = UserDevice(
-            user_id=user_id,
-            device_token=normalized_token,
-            platform=DevicePlatform(payload.platform),
-            is_active=True,
-        )
-        db.add(device)
-    else:
-        device.platform = DevicePlatform(payload.platform)
-        device.is_active = True
-
-    await db.commit()
-    return DeviceRegisterResponse(message="Device registered successfully")
 
 
 @router.get("/me/addresses", response_model=list[AddressListResponse])

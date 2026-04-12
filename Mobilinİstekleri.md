@@ -111,33 +111,7 @@
   "surname": "Bilgin",
   "email": "sametbilgin@gmail.com",
   "phone_number": "+905551234567",
-  "loyalty_points": 420,
-  "notification_preferences": {
-    "push_enabled": true,
-    "sms_enabled": false,
-    "email_enabled": true
-  }
-}
-```
-
----
-
-## POST /api/v1/users/me/device
-
-### Request
-
-```json
-{
-  "device_token": "fcm_device_token_123",
-  "platform": "ios"
-}
-```
-
-### Response
-
-```json
-{
-  "message": "Device registered successfully"
+  "loyalty_points": 420
 }
 ```
 
@@ -316,4 +290,3 @@
 ```
 
 ---
-
