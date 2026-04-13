@@ -411,6 +411,41 @@ Hata:
 
 ---
 
+### `GET /api/v1/users/me/favorites`
+
+Kullanıcının favori satıcılarını sayfalı olarak listeler.
+
+Headers:
+
+- `X-User-Id: <uuid>`
+
+Query params:
+
+- `page` (opsiyonel, default: `1`, min: `1`)
+- `size` (opsiyonel, default: `20`, min: `1`, max: `100`)
+
+Response `200 OK`:
+
+```json
+{
+  "items": [
+    {
+      "vendor_id": "vendor_101",
+      "created_at": "2026-04-13T10:00:00Z"
+    }
+  ],
+  "page": 1,
+  "size": 20,
+  "total": 15
+}
+```
+
+Hata:
+
+- `404 Not Found`: `User not found`
+
+---
+
 ### `POST /api/v1/users/me/favorites/{vendor_id}`
 
 Kullanıcının favori satıcılarına ekler (aynı kayıt varsa idempotent davranır).

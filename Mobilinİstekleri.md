@@ -308,22 +308,21 @@
 
 ---
 
-## GET /api/v1/users/me/favorites?page=1&limit=20
+## GET /api/v1/users/me/favorites?page=1&size=20
 
 ### Response
 
 ```json
 {
-  "page": 1,
-  "limit": 20,
-  "total": 15,
-  "data": [
+  "items": [
     {
       "vendor_id": "vendor_101",
-      "name": "Burger Point",
-      "image_url": "https://cdn.app.com/burger.jpg"
+      "created_at": "2026-04-13T10:00:00Z"
     }
-  ]
+  ],
+  "page": 1,
+  "size": 20,
+  "total": 15
 }
 ```
 

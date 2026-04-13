@@ -138,6 +138,18 @@ class FavoriteActionResponse(BaseModel):
     message: str
 
 
+class FavoriteListItemResponse(BaseModel):
+    vendor_id: str
+    created_at: datetime
+
+
+class FavoriteListResponse(BaseModel):
+    items: list[FavoriteListItemResponse]
+    page: int
+    size: int
+    total: int
+
+
 class InternalUserResponse(BaseModel):
     id: UUID
     name: str

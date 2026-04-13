@@ -6,8 +6,8 @@ from urllib.parse import urlencode
 from uuid import UUID
 
 import bcrypt
-from fastapi import APIRouter, Depends, Header, HTTPException, Path, status
-from sqlalchemy import or_, select, update
+from fastapi import APIRouter, Depends, Header, HTTPException, Path, Query, status
+from sqlalchemy import func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
@@ -27,6 +27,8 @@ from app.schemas.user import (
     ChangePasswordResponse,
     DeleteAddressResponse,
     FavoriteActionResponse,
+    FavoriteListItemResponse,
+    FavoriteListResponse,
     ForgotPasswordConfirmRequest,
     ForgotPasswordConfirmResponse,
     ForgotPasswordRequest,
@@ -510,6 +512,41 @@ async def set_current_address(
     await db.commit()
 
     return SetCurrentAddressResponse(message="Current address updated")
+
+
+@router.get("/me/favorites", response_model=FavoriteListResponse)
+async def list_favorites(
+    page: int = Query(1, ge=1),
+    size: int = Query(20, ge=1, le=100),
+    user_id: UUID = Depends(get_current_user_id),
+    db: AsyncSession = Depends(get_db),
+):
+    await get_current_user(user_id=user_id, db=db)
+
+    total_result = await db.execute(
+        select(func.count()).select_from(UserFavorite).where(UserFavorite.user_id == user_id)
+    )
+    total = total_result.scalar_one()
+
+    offset = (page - 1) * size
+    result = await db.execute(
+        select(UserFavorite)
+        .where(UserFavorite.user_id == user_id)
+        .order_by(UserFavorite.created_at.desc())
+        .offset(offset)
+        .limit(size)
+    )
+    favorites = result.scalars().all()
+
+    return FavoriteListResponse(
+        items=[
+            FavoriteListItemResponse(vendor_id=item.vendor_id, created_at=item.created_at)
+            for item in favorites
+        ],
+        page=page,
+        size=size,
+        total=total,
+    )
 
 
 @router.post("/me/favorites/{vendor_id}", response_model=FavoriteActionResponse)

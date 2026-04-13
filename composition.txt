@@ -1,0 +1,100 @@
+Amaç
+/favorites ekranında gerekli restoran kart verisini dönerken domain sınırlarını korumak:
+
+User Service: favori ilişkisini yönetir (user_id <-> vendor_id)
+Restaurant Service: restoran detayını yönetir (name, imageUrl, status)
+Gateway/BFF: composition/join yapar
+Servis Sorumlulukları
+
+User Service
+Favori ekle/sil/listele
+Sadece vendor_id + metadata döner
+Restaurant detayını bilmez
+Restaurant Service
+Bulk restoran lookup sağlar
+vendor_id listesine karşılık özet kart datası döner
+Gateway/BFF
+Mobil request’i karşılar
+User + Restaurant çağrılarını orkestre eder
+Join edilmiş final response döner
+Önerilen API Sözleşmeleri
+
+User Service (public via gateway)
+GET /api/v1/users/me/favorites?page=1&size=20
+Response:
+{
+  "items": [
+    { "vendor_id": "rest_1", "created_at": "2026-04-13T10:00:00Z" }
+  ],
+  "page": 1,
+  "size": 20,
+  "total": 42
+}
+Restaurant Service (internal)
+POST /internal/v1/restaurants/lookup
+Request:
+{ "vendorIds": ["rest_1", "rest_2"] }
+Response:
+{
+  "restaurants": [
+    {
+      "id": "rest_1",
+      "name": "Burger House",
+      "imageUrl": "https://...",
+      "isActive": true
+    }
+  ]
+}
+Gateway/BFF (mobile’ın çağıracağı)
+GET /api/v1/users/me/favorites
+Final Response:
+{
+  "items": [
+    {
+      "vendor_id": "rest_1",
+      "created_at": "2026-04-13T10:00:00Z",
+      "name": "Burger House",
+      "image_url": "https://...",
+      "is_available": true
+    }
+  ],
+  "page": 1,
+  "size": 20,
+  "total": 42
+}
+Uçtan Uca Flow
+
+Mobil -> Gateway: GET /users/me/favorites
+Gateway -> User Service: favori vendor_id listesi
+Gateway -> Restaurant Service: bulk lookup (vendorIds)
+Gateway: vendor_id ile join + sıra koruma (created_at desc)
+Gateway -> Mobil: compose edilmiş liste
+Hata ve Fallback Politikası
+
+User Service başarısızsa: request fail (4xx/5xx propagate)
+Restaurant Service timeout/fail:
+name/image_url alanlarını null dön
+is_available=false işaretle
+mümkünse partial=true flag ekle
+Bulunamayan vendor:
+item listede kalsın ama unavailable işaretlensin (UI kararı kolay olur)
+Performans Kuralları
+
+Restaurant tarafına tek bulk çağrı (N+1 yasak)
+Timeout: 300-500ms (internal)
+Retry: max 1 (idempotent internal call)
+Gateway kısa süreli cache (opsiyonel, 30-60 sn)
+Güvenlik
+
+Mobil hiçbir zaman internal endpoint çağırmaz
+Internal endpointler sadece cluster/internal network’te açık
+Gateway user context’i doğrular (X-User-Id)
+Teslim Planı (Paylaşılabilir)
+
+User Service: GET /me/favorites pagination ile finalize
+Restaurant Service: POST /internal/v1/restaurants/lookup implement
+Gateway: composition handler + partial fallback
+Contract test: 3 servis arası JSON sözleşme testi
+E2E test: normal/restaurant-timeout/vendor-not-found senaryoları
+Karar Cümlesi (hocaya/ekiplere)
+Composition katmanı Gateway/BFF’de olacak; User Service yalnızca favori ilişki datasını, Restaurant Service yalnızca restoran detay datasını sağlayacak. Bu, bounded context’i koruyup servis bağımlılığını minimize eder.
