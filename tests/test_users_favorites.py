@@ -25,6 +25,9 @@ class _ExecResult:
     def scalar_one(self):
         return self._scalar_one
 
+    def scalar_one_or_none(self):
+        return self._scalar_one
+
     def scalars(self):
         return _ScalarList(self._scalar_list or [])
 
