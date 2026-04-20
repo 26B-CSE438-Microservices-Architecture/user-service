@@ -3,7 +3,7 @@ import unittest
 import sys
 import os
 sys.path.insert(0, os.path.dirname(__file__))
-from _test_helpers import users_router, SKIP_REASON
+from ._test_helpers import users_router, SKIP_REASON
 
 _SKIP = unittest.skipIf(users_router is None, SKIP_REASON or "")
 

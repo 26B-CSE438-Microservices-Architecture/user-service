@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 import sys
 import os
 sys.path.insert(0, os.path.dirname(__file__))
-from _test_helpers import FakeDb, _ExecResult, make_user, users_router, SKIP_REASON
+from ._test_helpers import FakeDb, _ExecResult, make_user, users_router, SKIP_REASON
 
 try:
     from app.schemas.user import RegisterRequest
