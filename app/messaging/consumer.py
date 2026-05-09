@@ -10,7 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
-from app.database import AsyncSessionLocal
+from app.database import async_session
 from app.messaging.connection import get_channel
 
 logger = logging.getLogger(__name__)
@@ -61,7 +61,7 @@ async def _handle_command(message: AbstractIncomingMessage) -> None:
                     return
 
                 is_active = command_type == "user.activate"
-                async with AsyncSessionLocal() as db:
+                async with async_session() as db:
                     result = await db.execute(select(User).where(User.id == user_id))
                     user = result.scalar_one_or_none()
                     if user is None:
