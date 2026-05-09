@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     SMTP_PASSWORD: str = ""
     SMTP_USE_TLS: bool = True
     SMTP_FROM_EMAIL: str = "no-reply@example.com"
+    RABBITMQ_URL: str = "amqp://guest:guest@rabbitmq:5672/"
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 

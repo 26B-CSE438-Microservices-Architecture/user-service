@@ -1,4 +1,3 @@
-import asyncio
 import hashlib
 import secrets
 from datetime import datetime, timedelta, timezone
@@ -12,7 +11,18 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.database import get_db
-from app.email_utils import send_password_reset_email
+from app.email_utils import enqueue_password_reset_email
+from app.messaging.events import (
+    AddressCreatedEvent,
+    AddressDeletedEvent,
+    AddressUpdatedEvent,
+    FavoriteAddedEvent,
+    FavoriteRemovedEvent,
+    UserPasswordChangedEvent,
+    UserRegisteredEvent,
+    UserUpdatedEvent,
+)
+from app.messaging.publisher import publish_user_event
 from app.models.address import Address
 from app.models.favorite import UserFavorite
 from app.models.password_reset import PasswordResetToken
@@ -192,6 +202,17 @@ async def register_user(
     await db.commit()
     await db.refresh(user)
 
+    await publish_user_event(
+        UserRegisteredEvent(
+            user_id=str(user.id),
+            email=user.email,
+            name=user.name,
+            surname=user.surname,
+            role=user.role.value,
+        ),
+        routing_key="user.registered",
+    )
+
     return RegisterResponse(
         id=user.id,
         name=normalized_name,
@@ -229,6 +250,11 @@ async def change_password(
     user.hashed_password = hash_password(payload.new_password)
     await db.commit()
 
+    await publish_user_event(
+        UserPasswordChangedEvent(user_id=str(user_id)),
+        routing_key="user.password_changed",
+    )
+
     return ChangePasswordResponse(message="Password changed successfully")
 
 
@@ -259,13 +285,7 @@ async def request_forgot_password(
         await db.commit()
 
         reset_link = build_reset_link(raw_token)
-        try:
-            await asyncio.to_thread(send_password_reset_email, user.email, reset_link)
-        except Exception as exc:
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail="Failed to send reset email",
-            ) from exc
+        await enqueue_password_reset_email(user.email, reset_link)
 
     return ForgotPasswordRequestResponse(
         message="If the email exists, a reset link has been sent"
@@ -328,6 +348,11 @@ async def confirm_forgot_password(
     token_record.used_at = now
     await db.commit()
 
+    await publish_user_event(
+        UserPasswordChangedEvent(user_id=str(user.id)),
+        routing_key="user.password_changed",
+    )
+
     return ForgotPasswordConfirmResponse(message="Password reset successfully")
 
 
@@ -375,6 +400,17 @@ async def update_me(
 
     await db.commit()
     await db.refresh(user)
+
+    await publish_user_event(
+        UserUpdatedEvent(
+            user_id=str(user_id),
+            name=user.name,
+            surname=user.surname,
+            phone=user.phone,
+        ),
+        routing_key="user.updated",
+    )
+
     addresses = await get_user_addresses(user_id=user_id, db=db)
     return to_me_response(user, addresses)
 
@@ -413,6 +449,17 @@ async def create_address(
     db.add(address)
     await db.commit()
     await db.refresh(address)
+
+    await publish_user_event(
+        AddressCreatedEvent(
+            user_id=str(user_id),
+            address_id=str(address.id),
+            city=address.city,
+            district=address.district,
+        ),
+        routing_key="user.address.created",
+    )
+
     return to_address_response(address)
 
 
@@ -449,6 +496,12 @@ async def update_address(
 
     await db.commit()
     await db.refresh(address)
+
+    await publish_user_event(
+        AddressUpdatedEvent(user_id=str(user_id), address_id=str(parsed_address_id)),
+        routing_key="user.address.updated",
+    )
+
     return to_address_response(address)
 
 
@@ -477,6 +530,12 @@ async def delete_address(
     address.deleted_at = datetime.now(timezone.utc)
     address.is_current = False
     await db.commit()
+
+    await publish_user_event(
+        AddressDeletedEvent(user_id=str(user_id), address_id=str(parsed_address_id)),
+        routing_key="user.address.deleted",
+    )
+
     return DeleteAddressResponse(message="Address deleted")
 
 
@@ -574,6 +633,11 @@ async def add_favorite(
         db.add(UserFavorite(user_id=user_id, vendor_id=normalized_vendor_id))
         await db.commit()
 
+        await publish_user_event(
+            FavoriteAddedEvent(user_id=str(user_id), vendor_id=normalized_vendor_id),
+            routing_key="user.favorite.added",
+        )
+
     return FavoriteActionResponse(message="Vendor added to favorites")
 
 
@@ -601,5 +665,10 @@ async def remove_favorite(
     if favorite is not None:
         await db.delete(favorite)
         await db.commit()
+
+        await publish_user_event(
+            FavoriteRemovedEvent(user_id=str(user_id), vendor_id=normalized_vendor_id),
+            routing_key="user.favorite.removed",
+        )
 
     return FavoriteActionResponse(message="Vendor removed from favorites")

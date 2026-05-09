@@ -9,3 +9,4 @@ python-dotenv>=1.0.1
 bcrypt>=4.2.0
 sqladmin>=0.20.1
 wtforms>=3.1.2
+aio-pika>=9.4.0
